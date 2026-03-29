@@ -1,6 +1,9 @@
-use crate::fs_db::{SyncDatabaseSummary, VideoEventFile};
-use crate::takeout::{PlaylistVideoEntry, WatchHistoryEntry};
-use std::collections::{BTreeSet, HashMap};
+use crate::fs_db::SyncDatabaseSummary;
+use crate::fs_db::VideoEventFile;
+use crate::takeout::PlaylistVideoEntry;
+use crate::takeout::WatchHistoryEntry;
+use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::path::Path;
 
 /// Write generic sync-database event files from parsed takeout inputs.
@@ -75,7 +78,10 @@ pub async fn write_takeout_sync(
             .get(entry.video_id.as_str())
             .cloned()
             .unwrap_or((None, None));
-        let event_suffix = format!("added-to-playlist-{}", sanitize_component(&entry.playlist_id));
+        let event_suffix = format!(
+            "added-to-playlist-{}",
+            sanitize_component(&entry.playlist_id)
+        );
         let event_file = VideoEventFile {
             imported_at: imported_at.to_owned(),
             source_kind: "takeout-playlist-membership".to_owned(),
@@ -149,7 +155,11 @@ fn event_path_for(
         .join(channel_slug)
         .join("videos")
         .join(video_slug)
-        .join(format!("{}-{}.json", sanitize_timestamp(event_at), event_suffix))
+        .join(format!(
+            "{}-{}.json",
+            sanitize_timestamp(event_at),
+            event_suffix
+        ))
 }
 
 fn sanitize_timestamp(value: &str) -> String {

@@ -38,7 +38,9 @@ fn expand_user_home(value: &str) -> eyre::Result<PathBuf> {
             .or_else(|| std::env::var_os("HOME"))
             .map(PathBuf::from)
             .ok_or_else(|| eyre::eyre!("Could not determine user home directory"))?;
-        let suffix = value.trim_start_matches('~').trim_start_matches(['/', '\\']);
+        let suffix = value
+            .trim_start_matches('~')
+            .trim_start_matches(['/', '\\']);
         if suffix.is_empty() {
             return Ok(home);
         }

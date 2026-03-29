@@ -1,8 +1,10 @@
 use crate::paths::APP_HOME;
 use crate::paths::APP_SYNC_DIR_ENV_VAR;
 use eyre::WrapErr as _;
-use std::path::{Path, PathBuf};
-use tracing::{debug, warn};
+use std::path::Path;
+use std::path::PathBuf;
+use tracing::debug;
+use tracing::warn;
 
 const SYNC_DIR_FILE_NAME: &str = "sync_dir.txt";
 
@@ -15,7 +17,11 @@ pub fn get_sync_dir() -> eyre::Result<Option<PathBuf>> {
     if let Ok(value) = std::env::var(APP_SYNC_DIR_ENV_VAR) {
         let trimmed = value.trim();
         if !trimmed.is_empty() {
-            debug!(env = APP_SYNC_DIR_ENV_VAR, sync_dir = trimmed, "using sync dir from environment");
+            debug!(
+                env = APP_SYNC_DIR_ENV_VAR,
+                sync_dir = trimmed,
+                "using sync dir from environment"
+            );
             return Ok(Some(PathBuf::from(trimmed)));
         }
     }
@@ -58,8 +64,7 @@ pub fn set_sync_dir(path: &Path) -> eyre::Result<()> {
     if std::env::var(APP_SYNC_DIR_ENV_VAR).is_ok() {
         warn!(
             env = APP_SYNC_DIR_ENV_VAR,
-            "{} is set and will override the persisted sync dir",
-            APP_SYNC_DIR_ENV_VAR
+            "{} is set and will override the persisted sync dir", APP_SYNC_DIR_ENV_VAR
         );
     }
 
