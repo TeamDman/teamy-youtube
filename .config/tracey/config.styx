@@ -1,0 +1,45 @@
+// repo[impl tracey.specification.present]
+@schema {id crate:tracey-config@1, cli tracey}
+
+specs (
+    {
+        name teamy-youtube-repo
+        source_url https://github.com/TeamDman/teamy-youtube
+        include (docs/spec/repo/**/*.md)
+        impls (
+            {
+                name repo
+                include_plain (
+                    README.md
+                    Cargo.toml
+                    LICENSE
+                    .config/tracey/config.styx
+                )
+            }
+        )
+    }
+    {
+        name teamy-youtube-tools
+        source_url https://github.com/TeamDman/teamy-youtube
+        include (docs/spec/tools/**/*.md)
+        impls (
+            {
+                name rust
+                include (src/**/*.rs)
+                test_include (tests/**/*.rs)
+            }
+        )
+    }
+    {
+        name teamy-youtube-product
+        source_url https://github.com/TeamDman/teamy-youtube
+        include (docs/spec/product/**/*.md)
+        impls (
+            {
+                name rust
+                include (src/**/*.rs)
+                test_include (tests/**/*.rs)
+            }
+        )
+    }
+)

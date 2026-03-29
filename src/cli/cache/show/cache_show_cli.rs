@@ -1,0 +1,17 @@
+use arbitrary::Arbitrary;
+use facet::Facet;
+
+/// Show the cache path.
+#[derive(Facet, Arbitrary, Debug, PartialEq)]
+pub struct CacheShowArgs;
+
+impl CacheShowArgs {
+    /// # Errors
+    ///
+    /// This function does not return any errors.
+    #[expect(clippy::unused_async)]
+    pub async fn invoke(self) -> eyre::Result<()> {
+        println!("{}", crate::paths::CACHE_DIR.display());
+        Ok(())
+    }
+}
