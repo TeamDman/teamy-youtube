@@ -5,10 +5,13 @@ use crate::takeout::TakeoutWatchHistoryEventFile;
 use crate::takeout::TakeoutWatchLaterEventFile;
 use crate::takeout::WatchHistoryEntry;
 use crate::takeout::WatchLaterEntry;
-use chrono::{DateTime, FixedOffset, Local};
+use chrono::DateTime;
+use chrono::FixedOffset;
+use chrono::Local;
 use eyre::ContextCompat as _;
 use eyre::WrapErr as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use tokio::task::JoinSet;
 use tracing::info;
 
@@ -199,7 +202,8 @@ mod tests {
     use crate::takeout::WatchHistoryEntry;
     use crate::takeout::WatchLaterEntry;
     use crate::takeout::YoutubeVideoId;
-    use chrono::{DateTime, FixedOffset};
+    use chrono::DateTime;
+    use chrono::FixedOffset;
 
     #[tokio::test]
     async fn writes_manifest_and_event_files() {
@@ -210,11 +214,11 @@ mod tests {
         let app_home = AppHome(test_directory.clone());
 
         let watch_later_entries = vec![WatchLaterEntry {
-            video_id: YoutubeVideoId::new("watch-later-video".to_owned()).unwrap(),
+            video_id: YoutubeVideoId::new("watch-later-video").unwrap(),
             added_at: DateTime::parse_from_rfc3339("2026-03-26T17:55:54+00:00").unwrap(),
         }];
         let watch_history_entries = vec![WatchHistoryEntry {
-            video_id: YoutubeVideoId::new("watch-history-video".to_owned()).unwrap(),
+            video_id: YoutubeVideoId::new("watch-history-video").unwrap(),
             title: "History title".to_owned(),
             channel_name: Some("History channel".to_owned()),
             watched_at: DateTime::<FixedOffset>::parse_from_rfc3339("2026-03-26T18:55:54+00:00")

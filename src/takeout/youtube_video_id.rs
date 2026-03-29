@@ -1,4 +1,4 @@
-/// A concrete YouTube video identifier.
+/// A concrete `YouTube` video identifier.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct YoutubeVideoId(String);
 
@@ -6,7 +6,7 @@ impl YoutubeVideoId {
     /// # Errors
     ///
     /// Returns an error if the provided string is empty.
-    pub fn new(value: String) -> eyre::Result<Self> {
+    pub fn new(value: &str) -> eyre::Result<Self> {
         let trimmed = value.trim();
         if trimmed.is_empty() {
             eyre::bail!("video id cannot be empty");
@@ -34,7 +34,7 @@ impl YoutubeVideoId {
             .next()
             .unwrap_or_default()
             .trim();
-        Self::new(video_id.to_owned()).ok()
+        Self::new(video_id).ok()
     }
 
     fn from_youtube_watch_url(url: &str) -> Option<Self> {
@@ -53,7 +53,7 @@ impl YoutubeVideoId {
         for pair in query.split('&') {
             let (key, value) = pair.split_once('=')?;
             if key == "v" {
-                return Self::new(value.to_owned()).ok();
+                return Self::new(value).ok();
             }
         }
 
@@ -62,8 +62,8 @@ impl YoutubeVideoId {
 }
 
 impl std::fmt::Display for YoutubeVideoId {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.0)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
 }
 

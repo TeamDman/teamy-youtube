@@ -17,7 +17,10 @@ pub struct TakeoutImportManifest {
 }
 
 impl TakeoutImportManifest {
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "manifest construction mirrors persisted fields"
+    )]
     #[must_use]
     pub fn new(
         import_id: String,

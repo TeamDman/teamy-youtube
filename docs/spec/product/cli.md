@@ -15,10 +15,10 @@ The CLI must expose a `sync` command group for configuring the sync directory an
 
 ## Parser Model
 
-tool[parser.args-consistent]
+yt[parser.args-consistent]
 The structured CLI model must serialize to command line arguments consistently for parse-safe values.
 
-tool[parser.roundtrip]
+yt[parser.roundtrip]
 The structured CLI model must roundtrip through argument serialization and parsing for parse-safe values.
 
 ## Configuration

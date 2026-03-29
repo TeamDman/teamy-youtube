@@ -1,9 +1,10 @@
 use crate::takeout::YoutubeVideoId;
 use crate::takeout::raw_watch_history_entry::RawWatchHistoryEntry;
-use chrono::{DateTime, FixedOffset};
+use chrono::DateTime;
+use chrono::FixedOffset;
 use eyre::WrapErr as _;
 
-/// A watch-history entry that resolves to a concrete YouTube video.
+/// A watch-history entry that resolves to a concrete `YouTube` video.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WatchHistoryEntry {
     pub video_id: YoutubeVideoId,

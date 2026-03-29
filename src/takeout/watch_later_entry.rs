@@ -1,5 +1,6 @@
 use crate::takeout::YoutubeVideoId;
-use chrono::{DateTime, FixedOffset};
+use chrono::DateTime;
+use chrono::FixedOffset;
 use eyre::WrapErr as _;
 
 /// A single row from the Watch Later playlist CSV export.
@@ -20,7 +21,7 @@ impl WatchLaterEntry {
             eyre::bail!("row {line_number} is missing the expected comma separator");
         };
 
-        let video_id = YoutubeVideoId::new(video_id.trim().to_owned())
+        let video_id = YoutubeVideoId::new(video_id.trim())
             .wrap_err_with(|| format!("invalid video id on row {line_number}"))?;
         let added_at = DateTime::parse_from_rfc3339(added_at.trim()).wrap_err_with(|| {
             format!(
