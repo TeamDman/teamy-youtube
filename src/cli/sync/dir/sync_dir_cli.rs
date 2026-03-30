@@ -1,3 +1,4 @@
+use crate::cli::sync::dir::open::SyncDirOpenArgs;
 use crate::cli::sync::dir::set::SyncDirSetArgs;
 use crate::cli::sync::dir::show::SyncDirShowArgs;
 use arbitrary::Arbitrary;
@@ -16,6 +17,8 @@ pub struct SyncDirArgs {
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
 #[repr(u8)]
 pub enum SyncDirCommand {
+    /// Open the current sync directory in the file manager.
+    Open(SyncDirOpenArgs),
     /// Set the persisted sync directory.
     Set(SyncDirSetArgs),
     /// Show the current sync directory.
@@ -28,6 +31,7 @@ impl SyncDirArgs {
     /// This function will return an error if the selected subcommand fails.
     pub async fn invoke(self) -> eyre::Result<()> {
         match self.command {
+            SyncDirCommand::Open(args) => args.invoke().await,
             SyncDirCommand::Set(args) => args.invoke().await,
             SyncDirCommand::Show(args) => args.invoke().await,
         }

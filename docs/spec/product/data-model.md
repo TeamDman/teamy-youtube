@@ -18,8 +18,14 @@ Videos must be stored beneath their owning channel so that a stable channel-orie
 yt[storage.video-id-stable-key]
 Each video's immutable YouTube video ID must be part of the path used to store that video's local records.
 
+yt[storage.video-directory.id-prefix]
+Each video directory name must begin with the immutable YouTube video ID and may append a human-readable slug suffix after it.
+
+yt[storage.video-directory.omits-event-verbs]
+Video directory names must not be prefixed with event-specific verbs such as `watched`.
+
 yt[storage.channel-video-event-layout]
-The sync directory must support a generic layout of `channels/<channel-slug>/videos/<video-slug>/<timestamp>-<event>.json`.
+The sync directory must support a generic layout of `channels/<channel-slug>/videos/<video-id>-<video-slug>/event_<timestamp>_<event-id>.json`.
 
 ## Snapshots And Events
 

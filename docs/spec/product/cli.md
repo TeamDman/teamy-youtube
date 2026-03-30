@@ -30,7 +30,10 @@ yt[config.sync-directory]
 The CLI must support a dedicated sync directory that contains the canonical on-disk YouTube dataset.
 
 yt[config.sync-directory.set-show]
-The CLI must provide `sync dir set` and `sync dir show` commands.
+The CLI must provide `sync dir set`, `sync dir show`, and `sync dir open` commands.
+
+yt[config.sync-directory.open-opens-manager]
+`sync dir open` must open the configured sync directory in the platform file manager.
 
 yt[config.sync-directory.required-for-sync]
 The `sync run` workflow must fail with a user-facing error if the sync directory is not configured.
@@ -63,3 +66,6 @@ yt[sync.takeout.dry-run]
 
 yt[sync.takeout.multiple-playlists]
 Takeout sync must ingest playlist CSVs generically rather than being hard-coded only to Watch Later.
+
+yt[sync.takeout.playlist-membership-events]
+Takeout sync must write playlist membership events for parsed playlist CSV rows in addition to watch-history events.

@@ -39,9 +39,9 @@ TEAMY_YOUTUBE_SYNC_DIR/
 ├── channels/
 │   └── <channel-slug>/
 │       └── videos/
-│           └── <video-slug>/
-│               ├── <timestamp>-watched.json
-│               ├── <timestamp>-added-to-playlist-<playlist-slug>.json
+│           └── <video-id>-<video-slug>/
+│               ├── event_<timestamp>_watched.json
+│               ├── event_<timestamp>_added-to-playlist-<playlist-id>.json
 │               └── ...future generic events...
 ```
 
@@ -51,7 +51,7 @@ The exact event shapes will keep evolving, but the stable direction is source-ag
 
 - `home`: show or open the roaming home directory
 - `cache`: show, open, or clean the local cache directory
-- `sync`: show or set the sync directory, then ingest datasources into the filesystem database
+- `sync`: show, open, or set the sync directory, then ingest datasources into the filesystem database
 
 ## Example Usage
 
@@ -60,6 +60,7 @@ cargo run -- home show
 cargo run -- cache clean
 cargo run -- sync dir set ~/Downloads/teamy-youtube-sync
 cargo run -- sync dir show
+cargo run -- sync dir open
 cargo run -- sync run takeout --dry-run
 cargo run -- sync run takeout --dry-run --input-dir C:\Users\TeamD\OneDrive\Documents\Backups\takeout\takeout-20260326T232255Z-3-001
 ```

@@ -143,11 +143,13 @@ fn event_path_for(
     event_suffix: &str,
 ) -> std::path::PathBuf {
     let channel_slug = sanitize_component(channel_name.unwrap_or("unknown-channel"));
-    let title_slug = sanitize_component(video_title.unwrap_or(video_id));
+    let title_slug = video_title
+        .map(normalize_title_for_path)
+        .map_or_else(|| video_id.to_owned(), |value| sanitize_component(&value));
     let video_slug = if title_slug == video_id {
         title_slug
     } else {
-        format!("{title_slug}-{video_id}")
+        format!("{video_id}-{title_slug}")
     };
 
     sync_dir
@@ -156,7 +158,7 @@ fn event_path_for(
         .join("videos")
         .join(video_slug)
         .join(format!(
-            "{}-{}.json",
+            "event_{}_{}.json",
             sanitize_timestamp(event_at),
             event_suffix
         ))
@@ -164,6 +166,22 @@ fn event_path_for(
 
 fn sanitize_timestamp(value: &str) -> String {
     value.replace(':', "-")
+}
+
+fn normalize_title_for_path(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() > "watched ".len()
+        && trimmed[.."watched ".len()].eq_ignore_ascii_case("watched ")
+    {
+        return trimmed["watched ".len()..].trim().to_owned();
+    }
+    if trimmed.len() > "watched-".len()
+        && trimmed[.."watched-".len()].eq_ignore_ascii_case("watched-")
+    {
+        return trimmed["watched-".len()..].trim().to_owned();
+    }
+
+    trimmed.to_owned()
 }
 
 fn sanitize_component(value: &str) -> String {

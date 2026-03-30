@@ -1,3 +1,4 @@
+pub mod open;
 pub mod set;
 pub mod show;
 mod sync_dir_cli;
