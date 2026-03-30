@@ -79,7 +79,7 @@ The first implementation target is a filesystem-backed pipeline that can:
 
 - `sync run takeout` requires the sync dir to be configured first.
 - If `--input-dir` is omitted, takeout discovery uses the `teamy-mft` crate to query indexed files and pick the most recent `watch-history.json` plus the most recent version of each playlist CSV.
-- `--dry-run` prints a count summary and skips writing event files.
+- `--dry-run` prints a count summary, skips writing event files, and previews the canonical output paths for a sample video that appears in both watch history and a playlist when such an overlap exists.
 
 ## Related Workspace Repositories
 

@@ -62,7 +62,7 @@ yt[sync.takeout.latest-playlists]
 Default takeout discovery must select the most recent available CSV for each playlist.
 
 yt[sync.takeout.dry-run]
-`sync run takeout --dry-run` must print a short summary and must not write to the sync directory.
+`sync run takeout --dry-run` must print a short summary, must not write to the sync directory, and must include a sample preview of the canonical output paths for a video that appears in both watch history and at least one playlist when such an overlap exists.
 
 yt[sync.takeout.multiple-playlists]
 Takeout sync must ingest playlist CSVs generically rather than being hard-coded only to Watch Later.

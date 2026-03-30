@@ -78,10 +78,7 @@ pub async fn write_takeout_sync(
             .get(entry.video_id.as_str())
             .cloned()
             .unwrap_or((None, None));
-        let event_suffix = format!(
-            "added-to-playlist-{}",
-            sanitize_component(&entry.playlist_id)
-        );
+        let event_suffix = playlist_event_suffix(&entry.playlist_id);
         let event_file = VideoEventFile {
             imported_at: imported_at.to_owned(),
             source_kind: "takeout-playlist-membership".to_owned(),
@@ -134,7 +131,9 @@ async fn write_event_file(
     Ok(())
 }
 
-fn event_path_for(
+/// Build the canonical path for a video event in the sync database.
+#[must_use]
+pub fn event_path_for(
     sync_dir: &Path,
     channel_name: Option<&str>,
     video_title: Option<&str>,
@@ -162,6 +161,12 @@ fn event_path_for(
             sanitize_timestamp(event_at),
             event_suffix
         ))
+}
+
+/// Build the canonical event-id suffix for a playlist-membership event.
+#[must_use]
+pub fn playlist_event_suffix(playlist_id: &str) -> String {
+    format!("added-to-playlist-{}", sanitize_component(playlist_id))
 }
 
 fn sanitize_timestamp(value: &str) -> String {

@@ -29,103 +29,230 @@ impl SyncRunTakeoutArgs {
     /// the takeout inputs cannot be read, or the sync database cannot be written.
     pub async fn invoke(self) -> eyre::Result<()> {
         let sync_dir = crate::paths::try_get_sync_dir()?;
-        let (watch_history_json, playlist_csvs, source_label) =
-            if let Some(input_dir) = self.input_dir {
-                let input_dir = normalize_input_dir(&input_dir)?;
-                let discovered = discover_takeout_inputs_from_directory(&input_dir)?;
-                (discovered.0, discovered.1, input_dir.display().to_string())
-            } else {
-                let discovered = discover_takeout_inputs_from_index()?;
-                (discovered.0, discovered.1, "teamy-mft-index".to_owned())
-            };
+        let discovered_inputs = discover_inputs(self.input_dir)?;
 
         info!(
             sync_dir = %sync_dir.display(),
-            watch_history_json = %watch_history_json.display(),
-            playlist_csv_count = playlist_csvs.len(),
+            watch_history_json = %discovered_inputs.watch_history_json.display(),
+            playlist_csv_count = discovered_inputs.playlist_csvs.len(),
             dry_run = self.dry_run,
             "syncing from takeout inputs"
         );
 
-        let mut playlist_entries = Vec::new();
-        for playlist_csv in &playlist_csvs {
-            let playlist_name = playlist_name_from_csv_path(playlist_csv)?;
-            let mut entries =
-                crate::takeout::read_playlist_video_entries(playlist_csv, playlist_name).await?;
-            playlist_entries.append(&mut entries);
-        }
-
+        let playlist_entries = load_playlist_entries(&discovered_inputs.playlist_csvs).await?;
         let watch_history_report =
-            crate::takeout::read_watch_history_entries(&watch_history_json).await?;
+            crate::takeout::read_watch_history_entries(&discovered_inputs.watch_history_json)
+                .await?;
         let imported_at = Local::now().to_rfc3339();
         let sync_summary = crate::fs_db::write_takeout_sync(
             &sync_dir,
             &imported_at,
-            &watch_history_json,
+            &discovered_inputs.watch_history_json,
             &playlist_entries,
             &watch_history_report.entries,
             self.dry_run,
         )
         .await?;
 
-        let unique_playlist_names = playlist_entries
-            .iter()
-            .map(|entry| entry.playlist_name.clone())
-            .collect::<BTreeSet<_>>()
-            .len();
-        let unique_playlist_video_ids = playlist_entries
-            .iter()
-            .map(|entry| entry.video_id.as_str().to_owned())
-            .collect::<BTreeSet<_>>()
-            .len();
-        let unique_watch_history_video_ids = watch_history_report
-            .entries
-            .iter()
-            .map(|entry| entry.video_id.as_str().to_owned())
-            .collect::<BTreeSet<_>>()
-            .len();
-
-        println!("source={source_label}");
-        println!("sync-dir={}", sync_dir.display());
-        println!("dry-run={}", self.dry_run);
-        println!("watch-history-json={}", watch_history_json.display());
-        println!("playlist-csv-count={}", playlist_csvs.len());
-        println!("playlist-count={unique_playlist_names}");
-        println!("playlist-entry-count={}", playlist_entries.len());
-        println!("playlist-unique-video-ids={unique_playlist_video_ids}");
-        println!(
-            "watch-history-entry-count={}",
-            watch_history_report.entries.len()
+        print_sync_summary(
+            &sync_dir,
+            self.dry_run,
+            &discovered_inputs,
+            &playlist_entries,
+            &watch_history_report,
+            &sync_summary,
         );
-        println!("watch-history-unique-video-ids={unique_watch_history_video_ids}");
-        println!(
-            "watch-history-skipped-entry-count={}",
-            watch_history_report.skipped_entry_count
-        );
-        println!(
-            "sync-unique-video-count={}",
-            sync_summary.unique_video_count
-        );
-        println!(
-            "sync-unique-playlist-count={}",
-            sync_summary.unique_playlist_count
-        );
-        println!(
-            "sync-playlist-event-count={}",
-            sync_summary.playlist_event_count
-        );
-        println!("sync-watch-event-count={}", sync_summary.watch_event_count);
-        println!(
-            "sync-written-event-file-count={}",
-            sync_summary.written_event_file_count
-        );
-        println!(
-            "sync-existing-event-file-count={}",
-            sync_summary.existing_event_file_count
-        );
+        if self.dry_run {
+            for line in build_dry_run_preview_lines(
+                &sync_dir,
+                &playlist_entries,
+                &watch_history_report.entries,
+            ) {
+                println!("{line}");
+            }
+        }
 
         Ok(())
     }
+}
+
+struct DiscoveredInputs {
+    watch_history_json: PathBuf,
+    playlist_csvs: Vec<PathBuf>,
+    source_label: String,
+}
+
+fn discover_inputs(input_dir: Option<String>) -> eyre::Result<DiscoveredInputs> {
+    let (watch_history_json, playlist_csvs, source_label) = if let Some(input_dir) = input_dir {
+        let input_dir = normalize_input_dir(&input_dir)?;
+        let discovered = discover_takeout_inputs_from_directory(&input_dir)?;
+        (discovered.0, discovered.1, input_dir.display().to_string())
+    } else {
+        let discovered = discover_takeout_inputs_from_index()?;
+        (discovered.0, discovered.1, "teamy-mft-index".to_owned())
+    };
+
+    Ok(DiscoveredInputs {
+        watch_history_json,
+        playlist_csvs,
+        source_label,
+    })
+}
+
+async fn load_playlist_entries(
+    playlist_csvs: &[PathBuf],
+) -> eyre::Result<Vec<crate::takeout::PlaylistVideoEntry>> {
+    let mut playlist_entries = Vec::new();
+    for playlist_csv in playlist_csvs {
+        let playlist_name = playlist_name_from_csv_path(playlist_csv)?;
+        let mut entries =
+            crate::takeout::read_playlist_video_entries(playlist_csv, playlist_name).await?;
+        playlist_entries.append(&mut entries);
+    }
+
+    Ok(playlist_entries)
+}
+
+fn print_sync_summary(
+    sync_dir: &Path,
+    dry_run: bool,
+    discovered_inputs: &DiscoveredInputs,
+    playlist_entries: &[crate::takeout::PlaylistVideoEntry],
+    watch_history_report: &crate::takeout::WatchHistoryReport,
+    sync_summary: &crate::fs_db::SyncDatabaseSummary,
+) {
+    let unique_playlist_names = playlist_entries
+        .iter()
+        .map(|entry| entry.playlist_name.clone())
+        .collect::<BTreeSet<_>>()
+        .len();
+    let unique_playlist_video_ids = playlist_entries
+        .iter()
+        .map(|entry| entry.video_id.as_str().to_owned())
+        .collect::<BTreeSet<_>>()
+        .len();
+    let unique_watch_history_video_ids = watch_history_report
+        .entries
+        .iter()
+        .map(|entry| entry.video_id.as_str().to_owned())
+        .collect::<BTreeSet<_>>()
+        .len();
+
+    println!("source={}", discovered_inputs.source_label);
+    println!("sync-dir={}", sync_dir.display());
+    println!("dry-run={dry_run}");
+    println!(
+        "watch-history-json={}",
+        discovered_inputs.watch_history_json.display()
+    );
+    println!(
+        "playlist-csv-count={}",
+        discovered_inputs.playlist_csvs.len()
+    );
+    println!("playlist-count={unique_playlist_names}");
+    println!("playlist-entry-count={}", playlist_entries.len());
+    println!("playlist-unique-video-ids={unique_playlist_video_ids}");
+    println!(
+        "watch-history-entry-count={}",
+        watch_history_report.entries.len()
+    );
+    println!("watch-history-unique-video-ids={unique_watch_history_video_ids}");
+    println!(
+        "watch-history-skipped-entry-count={}",
+        watch_history_report.skipped_entry_count
+    );
+    println!(
+        "sync-unique-video-count={}",
+        sync_summary.unique_video_count
+    );
+    println!(
+        "sync-unique-playlist-count={}",
+        sync_summary.unique_playlist_count
+    );
+    println!(
+        "sync-playlist-event-count={}",
+        sync_summary.playlist_event_count
+    );
+    println!("sync-watch-event-count={}", sync_summary.watch_event_count);
+    println!(
+        "sync-written-event-file-count={}",
+        sync_summary.written_event_file_count
+    );
+    println!(
+        "sync-existing-event-file-count={}",
+        sync_summary.existing_event_file_count
+    );
+}
+
+fn build_dry_run_preview_lines(
+    sync_dir: &Path,
+    playlist_entries: &[crate::takeout::PlaylistVideoEntry],
+    watch_history_entries: &[crate::takeout::WatchHistoryEntry],
+) -> Vec<String> {
+    let Some(watch_entry) = watch_history_entries.iter().find(|watch_entry| {
+        playlist_entries
+            .iter()
+            .any(|playlist_entry| playlist_entry.video_id == watch_entry.video_id)
+    }) else {
+        return vec!["preview-sample=unavailable-no-watch-playlist-overlap".to_owned()];
+    };
+
+    let matching_playlist_entries = playlist_entries
+        .iter()
+        .filter(|playlist_entry| playlist_entry.video_id == watch_entry.video_id)
+        .collect::<Vec<_>>();
+    let watched_event_path = crate::fs_db::event_path_for(
+        sync_dir,
+        watch_entry.channel_name.as_deref(),
+        Some(&watch_entry.title),
+        watch_entry.video_id.as_str(),
+        &watch_entry.watched_at.to_rfc3339(),
+        "watched",
+    );
+    let Some(video_dir) = watched_event_path.parent() else {
+        return vec!["preview-sample=unavailable-invalid-event-path".to_owned()];
+    };
+
+    let mut lines = vec![
+        format!("preview-sample-video-id={}", watch_entry.video_id.as_str()),
+        format!("preview-sample-video-title={}", watch_entry.title),
+        format!(
+            "preview-sample-video-dir={}",
+            format_preview_path(sync_dir, video_dir)
+        ),
+        format!(
+            "preview-sample-event-file={}",
+            format_preview_path(sync_dir, &watched_event_path)
+        ),
+    ];
+
+    let mut playlist_event_paths = matching_playlist_entries
+        .into_iter()
+        .map(|playlist_entry| {
+            crate::fs_db::event_path_for(
+                sync_dir,
+                watch_entry.channel_name.as_deref(),
+                Some(&watch_entry.title),
+                watch_entry.video_id.as_str(),
+                &playlist_entry.added_at.to_rfc3339(),
+                &crate::fs_db::playlist_event_suffix(&playlist_entry.playlist_id),
+            )
+        })
+        .collect::<Vec<_>>();
+    playlist_event_paths.sort();
+    for playlist_event_path in playlist_event_paths {
+        lines.push(format!(
+            "preview-sample-event-file={}",
+            format_preview_path(sync_dir, &playlist_event_path)
+        ));
+    }
+
+    lines
+}
+
+fn format_preview_path(sync_dir: &Path, path: &Path) -> String {
+    let display_path = path.strip_prefix(sync_dir).unwrap_or(path);
+    display_path.display().to_string().replace('\\', "/")
 }
 
 fn normalize_input_dir(value: &str) -> eyre::Result<PathBuf> {
@@ -290,4 +417,93 @@ fn takeout_root(path: &Path) -> Option<PathBuf> {
 
 fn is_readable_file(path: &Path) -> bool {
     std::fs::read(path).is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_dry_run_preview_lines;
+    use chrono::DateTime;
+    use chrono::FixedOffset;
+    use std::path::Path;
+
+    #[test]
+    fn dry_run_preview_includes_watch_and_playlist_paths_for_overlap() {
+        let playlist_entries = vec![crate::takeout::PlaylistVideoEntry {
+            playlist_id: "favorites".to_owned(),
+            playlist_name: "Favorites".to_owned(),
+            source_file: "favorites.csv".to_owned(),
+            video_id: crate::takeout::YoutubeVideoId::new("XfcLWVX-hCA")
+                .expect("video id should parse"),
+            added_at: DateTime::<FixedOffset>::parse_from_rfc3339("2026-02-20T18:22:41+00:00")
+                .expect("playlist timestamp should parse"),
+        }];
+        let watch_history_entries = vec![crate::takeout::WatchHistoryEntry {
+            video_id: crate::takeout::YoutubeVideoId::new("XfcLWVX-hCA")
+                .expect("video id should parse"),
+            title: "Watched Arc Raiders War Tapes 1".to_owned(),
+            channel_name: Some("0biwankenobi".to_owned()),
+            watched_at: DateTime::<FixedOffset>::parse_from_rfc3339(
+                "2025-11-20T23:03:24.580+00:00",
+            )
+            .expect("watch timestamp should parse"),
+        }];
+
+        let lines = build_dry_run_preview_lines(
+            Path::new("G:/sync-root"),
+            &playlist_entries,
+            &watch_history_entries,
+        );
+
+        assert_eq!(lines[0], "preview-sample-video-id=XfcLWVX-hCA");
+        assert_eq!(
+            lines[1],
+            "preview-sample-video-title=Watched Arc Raiders War Tapes 1"
+        );
+        assert_eq!(
+            lines[2],
+            "preview-sample-video-dir=channels/0biwankenobi/videos/XfcLWVX-hCA-arc-raiders-war-tapes-1"
+        );
+        assert_eq!(
+            lines[3],
+            "preview-sample-event-file=channels/0biwankenobi/videos/XfcLWVX-hCA-arc-raiders-war-tapes-1/event_2025-11-20T23-03-24.580+00-00_watched.json"
+        );
+        assert_eq!(
+            lines[4],
+            "preview-sample-event-file=channels/0biwankenobi/videos/XfcLWVX-hCA-arc-raiders-war-tapes-1/event_2026-02-20T18-22-41+00-00_added-to-playlist-favorites.json"
+        );
+    }
+
+    #[test]
+    fn dry_run_preview_reports_when_no_overlap_exists() {
+        let playlist_entries = vec![crate::takeout::PlaylistVideoEntry {
+            playlist_id: "favorites".to_owned(),
+            playlist_name: "Favorites".to_owned(),
+            source_file: "favorites.csv".to_owned(),
+            video_id: crate::takeout::YoutubeVideoId::new("playlist-only")
+                .expect("video id should parse"),
+            added_at: DateTime::<FixedOffset>::parse_from_rfc3339("2026-02-20T18:22:41+00:00")
+                .expect("playlist timestamp should parse"),
+        }];
+        let watch_history_entries = vec![crate::takeout::WatchHistoryEntry {
+            video_id: crate::takeout::YoutubeVideoId::new("watch-only")
+                .expect("video id should parse"),
+            title: "Watched Something Else".to_owned(),
+            channel_name: Some("Example Channel".to_owned()),
+            watched_at: DateTime::<FixedOffset>::parse_from_rfc3339(
+                "2025-11-20T23:03:24.580+00:00",
+            )
+            .expect("watch timestamp should parse"),
+        }];
+
+        let lines = build_dry_run_preview_lines(
+            Path::new("G:/sync-root"),
+            &playlist_entries,
+            &watch_history_entries,
+        );
+
+        assert_eq!(
+            lines,
+            vec!["preview-sample=unavailable-no-watch-playlist-overlap"]
+        );
+    }
 }
