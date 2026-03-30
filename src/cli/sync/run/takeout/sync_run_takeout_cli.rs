@@ -12,7 +12,7 @@ use tracing::info;
 /// Build the sync database from Google Takeout history and playlists.
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
 #[facet(rename_all = "kebab-case")]
-pub struct SyncNowTakeoutArgs {
+pub struct SyncRunTakeoutArgs {
     /// Print a summary without writing the sync database.
     #[facet(args::named, default)]
     pub dry_run: bool,
@@ -22,7 +22,7 @@ pub struct SyncNowTakeoutArgs {
     pub input_dir: Option<String>,
 }
 
-impl SyncNowTakeoutArgs {
+impl SyncRunTakeoutArgs {
     /// # Errors
     ///
     /// This function will return an error if the sync dir is unset, discovery fails,

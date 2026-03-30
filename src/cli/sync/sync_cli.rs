@@ -1,5 +1,5 @@
 use crate::cli::sync::dir::SyncDirArgs;
-use crate::cli::sync::now::SyncNowArgs;
+use crate::cli::sync::run::SyncRunArgs;
 use arbitrary::Arbitrary;
 use facet::Facet;
 use figue as args;
@@ -19,7 +19,7 @@ pub enum SyncCommand {
     /// Show or set the sync directory.
     Dir(SyncDirArgs),
     /// Build the sync database from an ingestion source.
-    Now(SyncNowArgs),
+    Run(SyncRunArgs),
 }
 
 impl SyncArgs {
@@ -29,7 +29,7 @@ impl SyncArgs {
     pub async fn invoke(self) -> eyre::Result<()> {
         match self.command {
             SyncCommand::Dir(args) => args.invoke().await,
-            SyncCommand::Now(args) => args.invoke().await,
+            SyncCommand::Run(args) => args.invoke().await,
         }
     }
 }

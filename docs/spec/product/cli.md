@@ -33,7 +33,7 @@ yt[config.sync-directory.set-show]
 The CLI must provide `sync dir set` and `sync dir show` commands.
 
 yt[config.sync-directory.required-for-sync]
-The `sync now` workflow must fail with a user-facing error if the sync directory is not configured.
+The `sync run` workflow must fail with a user-facing error if the sync directory is not configured.
 
 yt[path.home.env-overrides-platform]
 If `TEAMY_YOUTUBE_HOME` is set to a non-empty value, it must take precedence over the platform-derived application home directory.
@@ -47,10 +47,10 @@ If `TEAMY_YOUTUBE_SYNC_DIR` is set to a non-empty value, it must take precedence
 ## Sync Workflow
 
 yt[sync.takeout.command]
-The CLI must expose `sync now takeout` as the primary Google Takeout ingestion workflow.
+The CLI must expose `sync run takeout` as the primary Google Takeout ingestion workflow.
 
 yt[sync.takeout.default-discovery]
-If `sync now takeout` is invoked without `--input-dir`, it must discover candidate takeout files using the `teamy-mft` crate rather than spawning the `teamy-mft` executable.
+If `sync run takeout` is invoked without `--input-dir`, it must discover candidate takeout files using the `teamy-mft` crate rather than spawning the `teamy-mft` executable.
 
 yt[sync.takeout.latest-history]
 Default takeout discovery must select the most recent available `watch-history.json` candidate.
@@ -59,7 +59,7 @@ yt[sync.takeout.latest-playlists]
 Default takeout discovery must select the most recent available CSV for each playlist.
 
 yt[sync.takeout.dry-run]
-`sync now takeout --dry-run` must print a short summary and must not write to the sync directory.
+`sync run takeout --dry-run` must print a short summary and must not write to the sync directory.
 
 yt[sync.takeout.multiple-playlists]
 Takeout sync must ingest playlist CSVs generically rather than being hard-coded only to Watch Later.

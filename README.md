@@ -9,7 +9,7 @@ This repository is being shaped around a few working decisions:
 - `figue` is the preferred CLI parser for this project.
 - The canonical data store should live on disk in a dedicated sync directory rather than in Postgres.
 - Existing Postgres-backed and takeout-ingest work from the Nanuak workspace should be reused as import sources, not treated as the long-term source of truth.
-- The primary workflow is `sync now`, with Google Takeout as the first datasource.
+- The primary workflow is `sync run`, with Google Takeout as the first datasource.
 
 ## Why Filesystem First
 
@@ -60,8 +60,8 @@ cargo run -- home show
 cargo run -- cache clean
 cargo run -- sync dir set ~/Downloads/teamy-youtube-sync
 cargo run -- sync dir show
-cargo run -- sync now takeout --dry-run
-cargo run -- sync now takeout --dry-run --input-dir C:\Users\TeamD\OneDrive\Documents\Backups\takeout\takeout-20260326T232255Z-3-001
+cargo run -- sync run takeout --dry-run
+cargo run -- sync run takeout --dry-run --input-dir C:\Users\TeamD\OneDrive\Documents\Backups\takeout\takeout-20260326T232255Z-3-001
 ```
 
 ## Immediate Goal
@@ -76,7 +76,7 @@ The first implementation target is a filesystem-backed pipeline that can:
 
 ## Current Behavior
 
-- `sync now takeout` requires the sync dir to be configured first.
+- `sync run takeout` requires the sync dir to be configured first.
 - If `--input-dir` is omitted, takeout discovery uses the `teamy-mft` crate to query indexed files and pick the most recent `watch-history.json` plus the most recent version of each playlist CSV.
 - `--dry-run` prints a count summary and skips writing event files.
 

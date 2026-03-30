@@ -1,31 +1,31 @@
-use crate::cli::sync::now::takeout::SyncNowTakeoutArgs;
+use crate::cli::sync::run::takeout::SyncRunTakeoutArgs;
 use arbitrary::Arbitrary;
 use facet::Facet;
 use figue as args;
 
 /// Build the sync database from a datasource.
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
-pub struct SyncNowArgs {
+pub struct SyncRunArgs {
     /// The datasource to sync from.
     #[facet(args::subcommand)]
-    pub command: SyncNowCommand,
+    pub command: SyncRunCommand,
 }
 
-/// Sync-now subcommands.
+/// Sync-run subcommands.
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
 #[repr(u8)]
-pub enum SyncNowCommand {
+pub enum SyncRunCommand {
     /// Build the sync database from Google Takeout exports.
-    Takeout(SyncNowTakeoutArgs),
+    Takeout(SyncRunTakeoutArgs),
 }
 
-impl SyncNowArgs {
+impl SyncRunArgs {
     /// # Errors
     ///
     /// This function will return an error if the selected subcommand fails.
     pub async fn invoke(self) -> eyre::Result<()> {
         match self.command {
-            SyncNowCommand::Takeout(args) => args.invoke().await,
+            SyncRunCommand::Takeout(args) => args.invoke().await,
         }
     }
 }
