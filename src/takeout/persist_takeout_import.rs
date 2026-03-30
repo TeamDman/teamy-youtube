@@ -201,7 +201,7 @@ mod tests {
     use crate::takeout::TakeoutImportManifest;
     use crate::takeout::WatchHistoryEntry;
     use crate::takeout::WatchLaterEntry;
-    use crate::takeout::YoutubeVideoId;
+    use crate::takeout::YouTubeVideoId;
     use chrono::DateTime;
     use chrono::FixedOffset;
 
@@ -214,11 +214,11 @@ mod tests {
         let app_home = AppHome(test_directory.clone());
 
         let watch_later_entries = vec![WatchLaterEntry {
-            video_id: YoutubeVideoId::new("watch-later-video").unwrap(),
+            video_id: YouTubeVideoId::new("watch-later-video").unwrap(),
             added_at: DateTime::parse_from_rfc3339("2026-03-26T17:55:54+00:00").unwrap(),
         }];
         let watch_history_entries = vec![WatchHistoryEntry {
-            video_id: YoutubeVideoId::new("watch-history-video").unwrap(),
+            video_id: YouTubeVideoId::new("watch-history-video").unwrap(),
             title: "History title".to_owned(),
             channel_name: Some("History channel".to_owned()),
             watched_at: DateTime::<FixedOffset>::parse_from_rfc3339("2026-03-26T18:55:54+00:00")

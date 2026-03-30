@@ -3,7 +3,7 @@ use tempfile::TempDir;
 #[tokio::test]
 async fn writes_video_and_channel_metadata_snapshots() {
     let temp_dir = TempDir::new().expect("temp dir should be created");
-    let metadata = teamy_youtube::youtube_api::YoutubeFetchedVideoMetadata {
+    let metadata = teamy_youtube::youtube_api::YouTubeFetchedVideoMetadata {
         source_url: "https://example.invalid/youtube-api".to_owned(),
         video_id: "XfcLWVX-hCA".to_owned(),
         title: "Arc Raiders War Tapes 1".to_owned(),

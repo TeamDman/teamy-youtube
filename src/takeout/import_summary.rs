@@ -1,6 +1,6 @@
 use crate::takeout::WatchHistoryEntry;
 use crate::takeout::WatchLaterEntry;
-use crate::takeout::YoutubeVideoId;
+use crate::takeout::YouTubeVideoId;
 use std::collections::BTreeSet;
 
 /// High-level counts for a takeout import run.
@@ -24,11 +24,11 @@ impl ImportSummary {
         let watch_later_video_ids = watch_later_entries
             .iter()
             .map(|entry| entry.video_id.clone())
-            .collect::<BTreeSet<YoutubeVideoId>>();
+            .collect::<BTreeSet<YouTubeVideoId>>();
         let watch_history_video_ids = watch_history_entries
             .iter()
             .map(|entry| entry.video_id.clone())
-            .collect::<BTreeSet<YoutubeVideoId>>();
+            .collect::<BTreeSet<YouTubeVideoId>>();
         let overlap_video_count = watch_later_video_ids
             .intersection(&watch_history_video_ids)
             .count();
@@ -49,7 +49,7 @@ mod tests {
     use super::ImportSummary;
     use crate::takeout::WatchHistoryEntry;
     use crate::takeout::WatchLaterEntry;
-    use crate::takeout::YoutubeVideoId;
+    use crate::takeout::YouTubeVideoId;
     use chrono::DateTime;
     use chrono::FixedOffset;
 
@@ -57,17 +57,17 @@ mod tests {
     fn summarizes_overlap_by_video_id() {
         let watch_later_entries = vec![
             WatchLaterEntry {
-                video_id: YoutubeVideoId::new("shared-video").unwrap(),
+                video_id: YouTubeVideoId::new("shared-video").unwrap(),
                 added_at: DateTime::parse_from_rfc3339("2026-03-26T17:55:54+00:00").unwrap(),
             },
             WatchLaterEntry {
-                video_id: YoutubeVideoId::new("watch-later-only").unwrap(),
+                video_id: YouTubeVideoId::new("watch-later-only").unwrap(),
                 added_at: DateTime::parse_from_rfc3339("2026-03-26T17:56:54+00:00").unwrap(),
             },
         ];
         let watch_history_entries = vec![
             WatchHistoryEntry {
-                video_id: YoutubeVideoId::new("shared-video").unwrap(),
+                video_id: YouTubeVideoId::new("shared-video").unwrap(),
                 title: "Shared video".to_owned(),
                 channel_name: Some("Example channel".to_owned()),
                 watched_at: DateTime::<FixedOffset>::parse_from_rfc3339(
@@ -76,7 +76,7 @@ mod tests {
                 .unwrap(),
             },
             WatchHistoryEntry {
-                video_id: YoutubeVideoId::new("history-only").unwrap(),
+                video_id: YouTubeVideoId::new("history-only").unwrap(),
                 title: "History only".to_owned(),
                 channel_name: None,
                 watched_at: DateTime::<FixedOffset>::parse_from_rfc3339(

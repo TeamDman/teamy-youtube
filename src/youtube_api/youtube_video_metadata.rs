@@ -1,10 +1,10 @@
-use crate::takeout::YoutubeVideoId;
+use crate::takeout::YouTubeVideoId;
 use eyre::WrapErr as _;
 use facet::Facet;
 
 /// Fetched video metadata normalized from the `YouTube` Data API.
 #[derive(Clone, Debug, PartialEq)]
-pub struct YoutubeFetchedVideoMetadata {
+pub struct YouTubeFetchedVideoMetadata {
     pub source_url: String,
     pub video_id: String,
     pub title: String,
@@ -25,9 +25,9 @@ pub struct YoutubeFetchedVideoMetadata {
 ///
 /// Returns an error if the API request fails, the response cannot be parsed, or no video is found.
 pub async fn fetch_video_metadata(
-    video_id: &YoutubeVideoId,
+    video_id: &YouTubeVideoId,
     api_key: &str,
-) -> eyre::Result<YoutubeFetchedVideoMetadata> {
+) -> eyre::Result<YouTubeFetchedVideoMetadata> {
     let source_url = format!(
         "https://www.googleapis.com/youtube/v3/videos?part=contentDetails,id,snippet,statistics,status&id={}&key={}&hl=en",
         video_id.as_str(),
@@ -49,7 +49,7 @@ pub async fn fetch_video_metadata(
         .text()
         .await
         .wrap_err("failed reading YouTube Data API response body")?;
-    let parsed: YoutubeVideosResponse = facet_json::from_str(&response_body)
+    let parsed: YouTubeVideosResponse = facet_json::from_str(&response_body)
         .wrap_err("failed parsing YouTube Data API response JSON")?;
     let item = parsed
         .items
@@ -57,7 +57,7 @@ pub async fn fetch_video_metadata(
         .next()
         .ok_or_else(|| eyre::eyre!("No YouTube video found for {}", video_id.as_str()))?;
 
-    Ok(YoutubeFetchedVideoMetadata {
+    Ok(YouTubeFetchedVideoMetadata {
         source_url,
         video_id: item.id,
         title: item.snippet.title,
@@ -88,7 +88,7 @@ pub async fn fetch_video_metadata(
 ///
 /// Returns an error if the API key is invalid or the request fails.
 pub async fn validate_api_key(api_key: &str) -> eyre::Result<()> {
-    let validation_video_id = YoutubeVideoId::new("dQw4w9WgXcQ")?;
+    let validation_video_id = YouTubeVideoId::new("dQw4w9WgXcQ")?;
     let _metadata = fetch_video_metadata(&validation_video_id, api_key).await?;
     Ok(())
 }
@@ -98,30 +98,30 @@ fn parse_u64(value: Option<&String>) -> Option<u64> {
 }
 
 #[derive(Debug, Facet, PartialEq)]
-struct YoutubeVideosResponse {
-    items: Vec<YoutubeVideoItem>,
+struct YouTubeVideosResponse {
+    items: Vec<YouTubeVideoItem>,
 }
 
 #[derive(Debug, Facet, PartialEq)]
-struct YoutubeVideoItem {
+struct YouTubeVideoItem {
     id: String,
     #[facet(rename = "contentDetails")]
-    content_details: YoutubeContentDetails,
-    snippet: YoutubeSnippet,
+    content_details: YouTubeContentDetails,
+    snippet: YouTubeSnippet,
     #[facet(default)]
-    statistics: Option<YoutubeStatistics>,
+    statistics: Option<YouTubeStatistics>,
     #[facet(default)]
-    status: Option<YoutubeStatus>,
+    status: Option<YouTubeStatus>,
 }
 
 #[derive(Debug, Facet, PartialEq)]
-struct YoutubeContentDetails {
+struct YouTubeContentDetails {
     duration: String,
 }
 
 #[derive(Debug, Facet, PartialEq)]
 #[facet(rename_all = "camelCase")]
-struct YoutubeSnippet {
+struct YouTubeSnippet {
     published_at: String,
     channel_id: String,
     title: String,
@@ -131,7 +131,7 @@ struct YoutubeSnippet {
 
 #[derive(Debug, Facet, PartialEq)]
 #[facet(rename_all = "camelCase")]
-struct YoutubeStatistics {
+struct YouTubeStatistics {
     #[facet(rename = "viewCount")]
     #[facet(default)]
     views: Option<String>,
@@ -145,6 +145,6 @@ struct YoutubeStatistics {
 
 #[derive(Debug, Facet, PartialEq)]
 #[facet(rename_all = "camelCase")]
-struct YoutubeStatus {
+struct YouTubeStatus {
     privacy_status: String,
 }

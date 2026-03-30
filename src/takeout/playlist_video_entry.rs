@@ -1,4 +1,4 @@
-use crate::takeout::YoutubeVideoId;
+use crate::takeout::YouTubeVideoId;
 use chrono::DateTime;
 use chrono::FixedOffset;
 use eyre::WrapErr as _;
@@ -9,7 +9,7 @@ pub struct PlaylistVideoEntry {
     pub playlist_id: String,
     pub playlist_name: String,
     pub source_file: String,
-    pub video_id: YoutubeVideoId,
+    pub video_id: YouTubeVideoId,
     pub added_at: DateTime<FixedOffset>,
 }
 
@@ -30,7 +30,7 @@ impl PlaylistVideoEntry {
             eyre::bail!("row {line_number} is missing the expected comma separator");
         };
 
-        let video_id = YoutubeVideoId::new(video_id.trim())
+        let video_id = YouTubeVideoId::new(video_id.trim())
             .wrap_err_with(|| format!("invalid video id on row {line_number}"))?;
         let added_at = DateTime::parse_from_rfc3339(added_at.trim()).wrap_err_with(|| {
             format!(

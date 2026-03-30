@@ -1,8 +1,8 @@
 /// A concrete `YouTube` video identifier.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct YoutubeVideoId(String);
+pub struct YouTubeVideoId(String);
 
-impl YoutubeVideoId {
+impl YouTubeVideoId {
     /// # Errors
     ///
     /// Returns an error if the provided string is empty.
@@ -61,7 +61,7 @@ impl YoutubeVideoId {
     }
 }
 
-impl std::fmt::Display for YoutubeVideoId {
+impl std::fmt::Display for YouTubeVideoId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
@@ -69,12 +69,12 @@ impl std::fmt::Display for YoutubeVideoId {
 
 #[cfg(test)]
 mod tests {
-    use super::YoutubeVideoId;
+    use super::YouTubeVideoId;
 
     #[test]
     fn parses_watch_url_query_param() {
         let video_id =
-            YoutubeVideoId::from_watch_url("https://www.youtube.com/watch?v=bQVXiDC5w54&list=WL")
+            YouTubeVideoId::from_watch_url("https://www.youtube.com/watch?v=bQVXiDC5w54&list=WL")
                 .unwrap();
 
         assert_eq!(video_id.as_str(), "bQVXiDC5w54");
@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn parses_youtu_be_url() {
-        let video_id = YoutubeVideoId::from_watch_url("https://youtu.be/bQVXiDC5w54?t=31").unwrap();
+        let video_id = YouTubeVideoId::from_watch_url("https://youtu.be/bQVXiDC5w54?t=31").unwrap();
 
         assert_eq!(video_id.as_str(), "bQVXiDC5w54");
     }

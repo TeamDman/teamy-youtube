@@ -432,13 +432,13 @@ mod tests {
             playlist_id: "favorites".to_owned(),
             playlist_name: "Favorites".to_owned(),
             source_file: "favorites.csv".to_owned(),
-            video_id: crate::takeout::YoutubeVideoId::new("XfcLWVX-hCA")
+            video_id: crate::takeout::YouTubeVideoId::new("XfcLWVX-hCA")
                 .expect("video id should parse"),
             added_at: DateTime::<FixedOffset>::parse_from_rfc3339("2026-02-20T18:22:41+00:00")
                 .expect("playlist timestamp should parse"),
         }];
         let watch_history_entries = vec![crate::takeout::WatchHistoryEntry {
-            video_id: crate::takeout::YoutubeVideoId::new("XfcLWVX-hCA")
+            video_id: crate::takeout::YouTubeVideoId::new("XfcLWVX-hCA")
                 .expect("video id should parse"),
             title: "Watched Arc Raiders War Tapes 1".to_owned(),
             channel_name: Some("0biwankenobi".to_owned()),
@@ -479,13 +479,13 @@ mod tests {
             playlist_id: "favorites".to_owned(),
             playlist_name: "Favorites".to_owned(),
             source_file: "favorites.csv".to_owned(),
-            video_id: crate::takeout::YoutubeVideoId::new("playlist-only")
+            video_id: crate::takeout::YouTubeVideoId::new("playlist-only")
                 .expect("video id should parse"),
             added_at: DateTime::<FixedOffset>::parse_from_rfc3339("2026-02-20T18:22:41+00:00")
                 .expect("playlist timestamp should parse"),
         }];
         let watch_history_entries = vec![crate::takeout::WatchHistoryEntry {
-            video_id: crate::takeout::YoutubeVideoId::new("watch-only")
+            video_id: crate::takeout::YouTubeVideoId::new("watch-only")
                 .expect("video id should parse"),
             title: "Watched Something Else".to_owned(),
             channel_name: Some("Example Channel".to_owned()),

@@ -20,7 +20,7 @@ impl FetchVideoArgs {
         let sync_dir = crate::paths::try_get_sync_dir()?;
         let api_key = crate::paths::try_get_youtube_api_key()?;
 
-        let video_id = crate::takeout::YoutubeVideoId::new(&self.video_id)?;
+        let video_id = crate::takeout::YouTubeVideoId::new(&self.video_id)?;
         let metadata = crate::youtube_api::fetch_video_metadata(&video_id, &api_key).await?;
         let fetched_at = Local::now().to_rfc3339();
         let (video_snapshot_path, channel_snapshot_path) =

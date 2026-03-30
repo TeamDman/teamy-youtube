@@ -1,6 +1,6 @@
 use crate::fs_db::ChannelMetadataSnapshotFile;
 use crate::fs_db::VideoMetadataSnapshotFile;
-use crate::youtube_api::YoutubeFetchedVideoMetadata;
+use crate::youtube_api::YouTubeFetchedVideoMetadata;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -12,7 +12,7 @@ use std::path::PathBuf;
 pub async fn write_fetched_video_metadata(
     sync_dir: &Path,
     fetched_at: &str,
-    metadata: &YoutubeFetchedVideoMetadata,
+    metadata: &YouTubeFetchedVideoMetadata,
 ) -> eyre::Result<(PathBuf, PathBuf)> {
     let video_snapshot_path = crate::fs_db::video_snapshot_path_for(
         sync_dir,
