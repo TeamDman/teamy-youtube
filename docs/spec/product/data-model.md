@@ -27,6 +27,12 @@ Video directory names must not be prefixed with event-specific verbs such as `wa
 yt[storage.channel-video-event-layout]
 The sync directory must support a generic layout of `channels/<channel-slug>/videos/<video-id>-<video-slug>/event_<timestamp>_<event-id>.json`.
 
+yt[storage.video-metadata.snapshot-layout]
+Video metadata snapshots must be stored at `channels/<channel-slug>/videos/<video-id>-<video-slug>/snapshot_<timestamp>_video.json`.
+
+yt[storage.channel-metadata.snapshot-layout]
+Channel metadata snapshots must be stored at `channels/<channel-slug>/snapshot_<timestamp>_channel.json`.
+
 ## Snapshots And Events
 
 yt[storage.video-metadata.snapshots]

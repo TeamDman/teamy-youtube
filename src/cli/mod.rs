@@ -1,10 +1,14 @@
+pub mod api;
 pub mod cache;
 pub mod facet_shape;
+pub mod fetch;
 pub mod global_args;
 pub mod home;
 pub mod sync;
 
+use crate::cli::api::ApiArgs;
 use crate::cli::cache::CacheArgs;
+use crate::cli::fetch::FetchArgs;
 use crate::cli::global_args::GlobalArgs;
 use crate::cli::home::HomeArgs;
 use crate::cli::sync::SyncArgs;
@@ -61,8 +65,12 @@ impl Cli {
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
 #[repr(u8)]
 pub enum Command {
+    /// Manage persisted external API configuration.
+    Api(ApiArgs),
     /// Inspect or manage the local throwaway cache directory.
     Cache(CacheArgs),
+    /// Fetch metadata from external sources into filesystem snapshots.
+    Fetch(FetchArgs),
     /// Inspect or open the roaming home directory.
     Home(HomeArgs),
     /// Reconcile referenced videos with local metadata snapshots.
@@ -75,7 +83,9 @@ impl Command {
     /// This function will return an error if the subcommand fails.
     pub async fn invoke(self) -> eyre::Result<()> {
         match self {
+            Command::Api(args) => args.invoke().await,
             Command::Cache(args) => args.invoke().await,
+            Command::Fetch(args) => args.invoke().await,
             Command::Home(args) => args.invoke().await,
             Command::Sync(args) => args.invoke().await,
         }

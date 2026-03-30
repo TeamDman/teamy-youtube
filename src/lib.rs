@@ -6,6 +6,7 @@ pub mod fs_db;
 pub mod logging_init;
 pub mod paths;
 pub mod takeout;
+pub mod youtube_api;
 
 use crate::cli::Cli;
 

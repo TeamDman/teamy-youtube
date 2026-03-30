@@ -62,7 +62,7 @@ pub async fn write_takeout_sync(
             playlist_id: None,
             playlist_name: None,
         };
-        let event_path = event_path_for(
+        let event_path = crate::fs_db::event_path_for(
             sync_dir,
             event_file.channel_name.as_deref(),
             Some(&entry.title),
@@ -78,7 +78,7 @@ pub async fn write_takeout_sync(
             .get(entry.video_id.as_str())
             .cloned()
             .unwrap_or((None, None));
-        let event_suffix = playlist_event_suffix(&entry.playlist_id);
+        let event_suffix = crate::fs_db::playlist_event_suffix(&entry.playlist_id);
         let event_file = VideoEventFile {
             imported_at: imported_at.to_owned(),
             source_kind: "takeout-playlist-membership".to_owned(),
@@ -91,7 +91,7 @@ pub async fn write_takeout_sync(
             playlist_id: Some(entry.playlist_id.clone()),
             playlist_name: Some(entry.playlist_name.clone()),
         };
-        let event_path = event_path_for(
+        let event_path = crate::fs_db::event_path_for(
             sync_dir,
             channel_name.as_deref(),
             video_title.as_deref(),
@@ -129,84 +129,4 @@ async fn write_event_file(
     tokio::fs::write(path, content).await?;
     summary.written_event_file_count += 1;
     Ok(())
-}
-
-/// Build the canonical path for a video event in the sync database.
-#[must_use]
-pub fn event_path_for(
-    sync_dir: &Path,
-    channel_name: Option<&str>,
-    video_title: Option<&str>,
-    video_id: &str,
-    event_at: &str,
-    event_suffix: &str,
-) -> std::path::PathBuf {
-    let channel_slug = sanitize_component(channel_name.unwrap_or("unknown-channel"));
-    let title_slug = video_title
-        .map(normalize_title_for_path)
-        .map_or_else(|| video_id.to_owned(), |value| sanitize_component(&value));
-    let video_slug = if title_slug == video_id {
-        title_slug
-    } else {
-        format!("{video_id}-{title_slug}")
-    };
-
-    sync_dir
-        .join("channels")
-        .join(channel_slug)
-        .join("videos")
-        .join(video_slug)
-        .join(format!(
-            "event_{}_{}.json",
-            sanitize_timestamp(event_at),
-            event_suffix
-        ))
-}
-
-/// Build the canonical event-id suffix for a playlist-membership event.
-#[must_use]
-pub fn playlist_event_suffix(playlist_id: &str) -> String {
-    format!("added-to-playlist-{}", sanitize_component(playlist_id))
-}
-
-fn sanitize_timestamp(value: &str) -> String {
-    value.replace(':', "-")
-}
-
-fn normalize_title_for_path(value: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.len() > "watched ".len()
-        && trimmed[.."watched ".len()].eq_ignore_ascii_case("watched ")
-    {
-        return trimmed["watched ".len()..].trim().to_owned();
-    }
-    if trimmed.len() > "watched-".len()
-        && trimmed[.."watched-".len()].eq_ignore_ascii_case("watched-")
-    {
-        return trimmed["watched-".len()..].trim().to_owned();
-    }
-
-    trimmed.to_owned()
-}
-
-fn sanitize_component(value: &str) -> String {
-    let mut sanitized = String::new();
-    let mut previous_was_dash = false;
-
-    for character in value.chars() {
-        if character.is_ascii_alphanumeric() {
-            sanitized.push(character.to_ascii_lowercase());
-            previous_was_dash = false;
-        } else if !previous_was_dash {
-            sanitized.push('-');
-            previous_was_dash = true;
-        }
-    }
-
-    let sanitized = sanitized.trim_matches('-');
-    if sanitized.is_empty() {
-        "unknown".to_owned()
-    } else {
-        sanitized.to_owned()
-    }
 }

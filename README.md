@@ -31,6 +31,7 @@ The main problem with the current setup is that the useful information is spread
 - `TEAMY_YOUTUBE_HOME` stores small roaming preferences such as the configured sync directory.
 - `TEAMY_YOUTUBE_CACHE_DIR` stores throwaway local cache content.
 - `TEAMY_YOUTUBE_SYNC_DIR` or `teamy-youtube sync dir set <path>` selects the durable filesystem database.
+- `YOUTUBE_API_KEY` overrides the persisted `YouTube` API key when set.
 
 ## Sync Directory Layout
 
@@ -38,10 +39,12 @@ The main problem with the current setup is that the useful information is spread
 TEAMY_YOUTUBE_SYNC_DIR/
 ├── channels/
 │   └── <channel-slug>/
+│       ├── snapshot_<timestamp>_channel.json
 │       └── videos/
 │           └── <video-id>-<video-slug>/
 │               ├── event_<timestamp>_watched.json
 │               ├── event_<timestamp>_added-to-playlist-<playlist-id>.json
+│               ├── snapshot_<timestamp>_video.json
 │               └── ...future generic events...
 ```
 
@@ -51,6 +54,8 @@ The exact event shapes will keep evolving, but the stable direction is source-ag
 
 - `home`: show or open the roaming home directory
 - `cache`: show, open, or clean the local cache directory
+- `api`: persist and validate API credentials used by external metadata fetchers
+- `fetch`: fetch metadata snapshots from external sources such as the YouTube Data API
 - `sync`: show, open, or set the sync directory, then ingest datasources into the filesystem database
 
 ## Example Usage
@@ -58,6 +63,9 @@ The exact event shapes will keep evolving, but the stable direction is source-ag
 ```powershell
 cargo run -- home show
 cargo run -- cache clean
+cargo run -- api key set your-youtube-api-key
+cargo run -- api key validate
+cargo run -- fetch video XfcLWVX-hCA
 cargo run -- sync dir set ~/Downloads/teamy-youtube-sync
 cargo run -- sync dir show
 cargo run -- sync dir open
@@ -78,8 +86,23 @@ The first implementation target is a filesystem-backed pipeline that can:
 ## Current Behavior
 
 - `sync run takeout` requires the sync dir to be configured first.
+- `api key set <value>` persists the `YouTube` API key under the application home directory.
+- `api key validate` checks that the configured `YouTube` API key can successfully call the `YouTube` Data API.
+- `fetch video <id>` requires the sync dir to be configured and a usable `YouTube` API key to be available either from `YOUTUBE_API_KEY` or the persisted home-directory config.
 - If `--input-dir` is omitted, takeout discovery uses the `teamy-mft` crate to query indexed files and pick the most recent `watch-history.json` plus the most recent version of each playlist CSV.
 - `--dry-run` prints a count summary, skips writing event files, and previews the canonical output paths for a sample video that appears in both watch history and a playlist when such an overlap exists.
+
+## PowerShell Helper
+
+The repository includes [Get-YouTubeAPIKey.ps1](Get-YouTubeAPIKey.ps1), which will:
+
+- run `cargo run -- api key validate`
+- if no usable key is configured, read a key from 1Password via `op read`
+- persist it with `cargo run -- api key set ...`
+- validate the stored key
+- print Google Cloud Console URLs for API-key and API-enablement management if validation fails
+
+Set `TEAMY_YOUTUBE_1PASSWORD_YOUTUBE_API_KEY_REFERENCE` or pass `-OnePasswordReference` when calling the script.
 
 ## Related Workspace Repositories
 

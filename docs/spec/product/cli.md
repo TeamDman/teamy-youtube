@@ -10,8 +10,14 @@ The CLI must expose a `home` command group for showing and opening the roaming a
 yt[command.surface.cache]
 The CLI must expose a `cache` command group for showing, opening, and cleaning the local throwaway cache directory.
 
+yt[command.surface.api]
+The CLI must expose an `api` command group for persisting and validating external API credentials.
+
 yt[command.surface.sync]
 The CLI must expose a `sync` command group for configuring the sync directory and ingesting datasources into the filesystem database.
+
+yt[command.surface.fetch]
+The CLI must expose a `fetch` command group for retrieving metadata snapshots from external sources.
 
 ## Parser Model
 
@@ -46,6 +52,30 @@ If `TEAMY_YOUTUBE_CACHE_DIR` is set to a non-empty value, it must take precedenc
 
 yt[path.sync.env-overrides-config]
 If `TEAMY_YOUTUBE_SYNC_DIR` is set to a non-empty value, it must take precedence over the persisted sync-directory setting.
+
+yt[path.youtube-api-key.env-overrides-config]
+If `YOUTUBE_API_KEY` is set to a non-empty value, it must take precedence over the persisted `YouTube` API key.
+
+yt[api.key.set.command]
+The CLI must expose `api key set <value>` for persisting a `YouTube` API key under the application home directory.
+
+yt[api.key.validate.command]
+The CLI must expose `api key validate` for validating the configured `YouTube` API key.
+
+yt[api.key.validate.uses-configured-key]
+`api key validate` must use the configured `YouTube` API key from either `YOUTUBE_API_KEY` or the persisted home-directory configuration.
+
+yt[fetch.video.requires-api-key]
+`fetch video <id>` must fail with a user-facing error if no usable `YouTube` API key is available from either `YOUTUBE_API_KEY` or the persisted home-directory configuration.
+
+yt[fetch.video.sync-dir-required]
+`fetch video <id>` must fail with a user-facing error if the sync directory is not configured.
+
+yt[fetch.video.command]
+The CLI must expose `fetch video <id>` for retrieving metadata for a specific YouTube video ID.
+
+yt[fetch.video.writes-snapshots]
+`fetch video <id>` must write canonical video and channel metadata snapshot files beneath the sync directory.
 
 ## Sync Workflow
 
