@@ -15,6 +15,10 @@ use tracing::info;
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
 #[facet(rename_all = "kebab-case")]
 pub struct SyncRunThumbnailsArgs {
+    /// Maximum number of videos to inspect for thumbnail sync during this run.
+    #[facet(args::named)]
+    pub limit: Option<usize>,
+
     // yt[sync.thumbnails.refresh-video-age]
     /// Refresh thumbnails only for videos newer than this age, for example `2d` or `12h`.
     #[facet(args::named)]
@@ -49,6 +53,13 @@ struct ThumbnailVideoOutcome {
     last_written_file: Option<String>,
 }
 
+#[derive(Debug, Eq, PartialEq)]
+struct ThumbnailSyncPlan {
+    candidate_video_count: usize,
+    planned_video_ids: Vec<crate::takeout::YouTubeVideoId>,
+    skipped_due_to_limit_count: usize,
+}
+
 struct VideoThumbnailContext<'a> {
     sync_dir: &'a Path,
     client: &'a reqwest::Client,
@@ -65,6 +76,7 @@ impl SyncRunThumbnailsArgs {
     /// This function will return an error if the sync dir is unset, raw fetch data cannot be
     /// read, thumbnail URLs cannot be parsed, or thumbnail files cannot be downloaded or written.
     pub async fn invoke(self) -> eyre::Result<()> {
+        let limit = self.limit;
         let refresh_videos_newer_than = self.refresh_videos_newer_than.clone();
         let refresh_thumbnails_older_than = self.refresh_thumbnails_older_than.clone();
         let refresh_policy = parse_refresh_policy(
@@ -72,22 +84,25 @@ impl SyncRunThumbnailsArgs {
             refresh_thumbnails_older_than.as_deref(),
         )?;
         let sync_dir = crate::paths::try_get_sync_dir()?;
-        let video_ids = crate::fs_db::load_video_ids_from_sync_dir(&sync_dir)?;
+        let plan = build_thumbnail_sync_plan(&sync_dir, limit)?;
         let client = reqwest::Client::new();
         let started_at = Instant::now();
-        let mut progress = crate::sync_progress::SyncProgress::new(video_ids.len());
+        let mut progress = crate::sync_progress::SyncProgress::new(plan.planned_video_ids.len());
 
         let mut counts = ThumbnailSyncCounts::default();
 
         info!(
             sync_dir = %sync_dir.display(),
-            candidate_video_count = video_ids.len(),
+            candidate_video_count = plan.candidate_video_count,
+            thumbnail_planned_video_count = plan.planned_video_ids.len(),
+            thumbnail_limit = %format_optional_limit(limit),
+            thumbnail_skipped_due_to_limit_count = plan.skipped_due_to_limit_count,
             refresh_videos_newer_than = format_optional_age(refresh_videos_newer_than.as_deref()),
             refresh_thumbnails_older_than = format_optional_age(refresh_thumbnails_older_than.as_deref()),
             "starting sync thumbnails"
         );
 
-        for video_id in &video_ids {
+        for video_id in &plan.planned_video_ids {
             let video_outcome = process_video_thumbnails(
                 &sync_dir,
                 &client,
@@ -109,7 +124,11 @@ impl SyncRunThumbnailsArgs {
         }
 
         println!("sync-dir={}", sync_dir.display());
-        println!("candidate-video-count={}", video_ids.len());
+        println!("candidate-video-count={}", plan.candidate_video_count);
+        println!(
+            "thumbnail-planned-video-count={}",
+            plan.planned_video_ids.len()
+        );
         println!(
             "thumbnail-fetch-source-video-count={}",
             counts.source_videos
@@ -122,6 +141,11 @@ impl SyncRunThumbnailsArgs {
         );
         println!("thumbnail-unchanged-count={}", counts.unchanged);
         println!("thumbnail-downloaded-count={}", counts.downloaded);
+        println!("thumbnail-limit={}", format_optional_limit(limit));
+        println!(
+            "thumbnail-skipped-due-to-limit-count={}",
+            plan.skipped_due_to_limit_count
+        );
         println!(
             "refresh-videos-newer-than={}",
             format_optional_age(refresh_videos_newer_than.as_deref())
@@ -132,6 +156,23 @@ impl SyncRunThumbnailsArgs {
         );
         Ok(())
     }
+}
+
+fn build_thumbnail_sync_plan(
+    sync_dir: &Path,
+    limit: Option<usize>,
+) -> eyre::Result<ThumbnailSyncPlan> {
+    let mut planned_video_ids = crate::fs_db::load_video_ids_from_sync_dir(sync_dir)?;
+    let candidate_video_count = planned_video_ids.len();
+    if let Some(limit) = limit {
+        planned_video_ids.truncate(limit);
+    }
+
+    Ok(ThumbnailSyncPlan {
+        skipped_due_to_limit_count: candidate_video_count.saturating_sub(planned_video_ids.len()),
+        candidate_video_count,
+        planned_video_ids,
+    })
 }
 
 async fn process_video_thumbnails(
@@ -314,6 +355,10 @@ fn format_optional_age(value: Option<&str>) -> &str {
     value.unwrap_or("none")
 }
 
+fn format_optional_limit(value: Option<usize>) -> String {
+    value.map_or_else(|| "none".to_owned(), |inner| inner.to_string())
+}
+
 // yt[sync.thumbnails.unchanged-event]
 async fn write_unchanged_thumbnail_event(
     sync_dir: &Path,
@@ -349,12 +394,23 @@ async fn write_unchanged_thumbnail_event(
 #[cfg(test)]
 mod tests {
     use super::format_optional_age;
+    use super::format_optional_limit;
     use super::parse_refresh_policy;
     use super::should_refresh_thumbnail;
 
     #[test]
     fn formats_missing_optional_age() {
         assert_eq!(format_optional_age(None), "none");
+    }
+
+    #[test]
+    fn formats_missing_optional_limit() {
+        assert_eq!(format_optional_limit(None), "none");
+    }
+
+    #[test]
+    fn formats_present_optional_limit() {
+        assert_eq!(format_optional_limit(Some(25)), "25");
     }
 
     #[test]

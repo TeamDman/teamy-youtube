@@ -76,6 +76,7 @@ cargo run -- sync takeout --dry-run
 cargo run -- sync takeout --dry-run --input-dir C:\Users\TeamD\OneDrive\Documents\Backups\takeout\takeout-20260326T232255Z-3-001
 cargo run -- sync videos --fetch-limit 25
 cargo run -- sync thumbnails
+cargo run -- sync thumbnails --limit 25
 cargo run -- sync thumbnails --refresh-videos-newer-than 2d --refresh-thumbnails-older-than 6h
 ```
 
@@ -98,6 +99,7 @@ The first implementation target is a filesystem-backed pipeline that can:
 - `fetch video <id>` writes a terminal raw fetch event for that video: either `event_<timestamp>_fetch_video_data.json`, `event_<timestamp>_fetch_video_data_missing.json`, or `event_<timestamp>_fetch_video_data_unavailable.json`.
 - `sync videos` fetches raw video API responses for videos already referenced in the sync database and can stop early with `--fetch-limit`.
 - `sync thumbnails` ensures thumbnails exist for each size variant discovered in the latest successful raw video fetch event.
+- `sync thumbnails` can stop early with `--limit` to inspect only a bounded number of videos during testing.
 - By default, `sync thumbnails` does not re-download a thumbnail size when a materialized thumbnail asset for that size already exists.
 - `sync thumbnails --refresh-videos-newer-than <age> --refresh-thumbnails-older-than <age>` enables refresh mode for recently published videos whose latest thumbnail observation is old enough to justify another check.
 - When a refresh finds the thumbnail bytes are unchanged, `sync thumbnails` writes `event_<timestamp>_thumbnail_<size>_unchanged.json` instead of duplicating the asset bytes.

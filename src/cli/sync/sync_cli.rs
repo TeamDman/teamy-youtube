@@ -63,6 +63,7 @@ async fn run_all_sync_stages() -> eyre::Result<()> {
 
     println!("sync-stage=thumbnails");
     SyncRunThumbnailsArgs {
+        limit: None,
         refresh_videos_newer_than: None,
         refresh_thumbnails_older_than: None,
     }

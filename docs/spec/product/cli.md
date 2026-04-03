@@ -103,6 +103,9 @@ yt[sync.fetch-videos.raw-persistence]
 yt[sync.thumbnails.command]
 The CLI must expose `sync thumbnails` for downloading thumbnail assets from previously fetched raw video data.
 
+yt[sync.thumbnails.limit]
+`sync thumbnails` may accept `--limit` to stop after inspecting a bounded number of videos for testing.
+
 yt[sync.thumbnails.latest-fetch]
 `sync thumbnails` must derive thumbnails from the latest successful raw fetch event recorded for each video.
 
