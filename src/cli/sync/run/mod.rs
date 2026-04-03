@@ -1,3 +1,4 @@
+pub mod postgres;
 mod sync_run_cli;
 pub mod takeout;
 

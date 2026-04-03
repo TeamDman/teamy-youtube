@@ -50,6 +50,9 @@ Watch history must be representable as timestamped events keyed by the reference
 yt[storage.events.source-agnostic]
 Event file shapes and paths must be source-agnostic so that the same database can later accept takeout, Postgres-derived, or API-derived observations.
 
+yt[storage.postgres.generic-event-mirror]
+Postgres synchronization must mirror generic event records without requiring a separate Postgres-only event shape.
+
 ## Incremental Enrichment
 
 yt[enrichment.accepts-partial-entities]

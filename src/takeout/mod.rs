@@ -1,27 +1,15 @@
-mod import_summary;
-mod persist_takeout_import;
 mod playlist_video_entry;
 mod raw_watch_history_entry;
 mod raw_watch_history_subtitle;
-mod takeout_import_manifest;
-mod takeout_watch_history_event_file;
-mod takeout_watch_later_event_file;
 mod watch_history_entry;
-mod watch_later_entry;
 mod youtube_video_id;
 
 use eyre::WrapErr as _;
-pub use import_summary::*;
-pub use persist_takeout_import::*;
 pub use playlist_video_entry::*;
 use std::path::Path;
-pub use takeout_import_manifest::*;
-pub use takeout_watch_history_event_file::*;
-pub use takeout_watch_later_event_file::*;
 use tracing::debug;
 use tracing::info;
 pub use watch_history_entry::*;
-pub use watch_later_entry::*;
 pub use youtube_video_id::*;
 
 const WATCH_LATER_HEADER: &str = "Video ID,Playlist Video Creation Timestamp";
@@ -81,53 +69,6 @@ pub async fn read_playlist_video_entries(
         playlist_name,
         entry_count = entries.len(),
         "loaded playlist entries"
-    );
-    Ok(entries)
-}
-
-/// Read the Watch Later playlist CSV from Google Takeout.
-///
-/// # Errors
-///
-/// Returns an error if the file cannot be read or if any non-header row is malformed.
-pub async fn read_watch_later_entries(path: &Path) -> eyre::Result<Vec<WatchLaterEntry>> {
-    let csv = tokio::fs::read_to_string(path)
-        .await
-        .wrap_err_with(|| format!("failed to read Watch Later CSV from {}", path.display()))?;
-
-    let mut lines = csv.lines();
-    let Some(header) = lines.next() else {
-        eyre::bail!("Watch Later CSV at {} is empty", path.display());
-    };
-
-    if header.trim() != WATCH_LATER_HEADER {
-        eyre::bail!(
-            "unexpected Watch Later CSV header in {}: expected {WATCH_LATER_HEADER:?}, found {:?}",
-            path.display(),
-            header,
-        );
-    }
-
-    let mut entries = Vec::new();
-    for (index, line) in lines.enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        let line_number = index + 2;
-        let entry = WatchLaterEntry::parse_csv_line(line_number, line).wrap_err_with(|| {
-            format!(
-                "failed to parse Watch Later CSV row {line_number} from {}",
-                path.display()
-            )
-        })?;
-        entries.push(entry);
-    }
-
-    info!(
-        path = %path.display(),
-        entry_count = entries.len(),
-        "loaded Watch Later entries"
     );
     Ok(entries)
 }

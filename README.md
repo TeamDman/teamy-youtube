@@ -71,6 +71,7 @@ cargo run -- sync dir show
 cargo run -- sync dir open
 cargo run -- sync run takeout --dry-run
 cargo run -- sync run takeout --dry-run --input-dir C:\Users\TeamD\OneDrive\Documents\Backups\takeout\takeout-20260326T232255Z-3-001
+cargo run -- sync run postgres --database-url postgres://postgres:postgres@localhost/teamy_youtube
 ```
 
 ## Immediate Goal
@@ -86,6 +87,9 @@ The first implementation target is a filesystem-backed pipeline that can:
 ## Current Behavior
 
 - `sync run takeout` requires the sync dir to be configured first.
+- `sync run postgres` requires the sync dir to be configured first.
+- `sync run postgres` syncs generic event files from the fsdb into a Postgres `youtube_video_events` table, then syncs rows from that table back into missing fsdb event files.
+- `sync run postgres` resolves the Postgres connection string from `--database-url`, `TEAMY_YOUTUBE_DATABASE_URL`, or `DATABASE_URL`.
 - `api key set <value>` persists the `YouTube` API key under the application home directory.
 - `api key validate` checks that the configured `YouTube` API key can successfully call the `YouTube` Data API.
 - `fetch video <id>` requires the sync dir to be configured and a usable `YouTube` API key to be available either from `YOUTUBE_API_KEY` or the persisted home-directory config.

@@ -82,6 +82,15 @@ yt[fetch.video.writes-snapshots]
 yt[sync.takeout.command]
 The CLI must expose `sync run takeout` as the primary Google Takeout ingestion workflow.
 
+yt[sync.postgres.command]
+The CLI must expose `sync run postgres` for bidirectional synchronization between the filesystem database and Postgres-backed generic event storage.
+
+yt[sync.postgres.database-url]
+`sync run postgres` must accept a Postgres connection string from `--database-url`, `TEAMY_YOUTUBE_DATABASE_URL`, or `DATABASE_URL`.
+
+yt[sync.postgres.bidirectional]
+`sync run postgres` must upsert generic event records from the filesystem database into Postgres and must write missing canonical event files back from Postgres into the filesystem database.
+
 yt[sync.takeout.default-discovery]
 If `sync run takeout` is invoked without `--input-dir`, it must discover candidate takeout files using the `teamy-mft` crate rather than spawning the `teamy-mft` executable.
 
