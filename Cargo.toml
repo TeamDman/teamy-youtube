@@ -28,11 +28,10 @@ facet-default = "0.44.1"
 facet-json = "0.44.1"
 facet-reflect = "0.44.1"
 figue = { git = "https://github.com/TeamDman/figue", rev = "0e82172c21e9ce0ecc4521ff01f6dbf56342867f", features = ["arbitrary"] }
+humantime = "2.2.0"
 open = "5"
-postgres-types = "0.2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 teamy-mft = "0.5.0"
-tokio-postgres = "0.7.15"
 
 [target.'cfg(windows)'.dependencies]
 teamy-windows = "0.9.0"

@@ -66,11 +66,7 @@ async fn sync_takeout_writes_video_id_prefixed_paths_and_playlist_events() {
     assert_eq!(summary.playlist_event_count, 1);
     assert_eq!(summary.written_event_file_count, 2);
 
-    let video_dir = sync_dir
-        .join("channels")
-        .join("0biwankenobi")
-        .join("videos")
-        .join("XfcLWVX-hCA-arc-raiders-war-tapes-1");
+    let video_dir = sync_dir.join("videos").join("XfcLWVX-hCA");
     assert!(
         video_dir.exists(),
         "expected video directory at {}",
@@ -124,11 +120,7 @@ async fn sync_takeout_uses_video_id_only_when_title_is_unknown() {
     assert_eq!(summary.watch_event_count, 0);
     assert_eq!(summary.playlist_event_count, 1);
 
-    let video_dir = sync_dir
-        .join("channels")
-        .join("unknown-channel")
-        .join("videos")
-        .join("abc123xyz89");
+    let video_dir = sync_dir.join("videos").join("abc123xyz89");
     let playlist_event_path =
         video_dir.join("event_2026-02-20T18-22-41+00-00_added-to-playlist-watch-later.json");
 

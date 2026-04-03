@@ -459,17 +459,14 @@ mod tests {
             lines[1],
             "preview-sample-video-title=Watched Arc Raiders War Tapes 1"
         );
-        assert_eq!(
-            lines[2],
-            "preview-sample-video-dir=channels/0biwankenobi/videos/XfcLWVX-hCA-arc-raiders-war-tapes-1"
-        );
+        assert_eq!(lines[2], "preview-sample-video-dir=videos/XfcLWVX-hCA");
         assert_eq!(
             lines[3],
-            "preview-sample-event-file=channels/0biwankenobi/videos/XfcLWVX-hCA-arc-raiders-war-tapes-1/event_2025-11-20T23-03-24.580+00-00_watched.json"
+            "preview-sample-event-file=videos/XfcLWVX-hCA/event_2025-11-20T23-03-24.580+00-00_watched.json"
         );
         assert_eq!(
             lines[4],
-            "preview-sample-event-file=channels/0biwankenobi/videos/XfcLWVX-hCA-arc-raiders-war-tapes-1/event_2026-02-20T18-22-41+00-00_added-to-playlist-favorites.json"
+            "preview-sample-event-file=videos/XfcLWVX-hCA/event_2026-02-20T18-22-41+00-00_added-to-playlist-favorites.json"
         );
     }
 

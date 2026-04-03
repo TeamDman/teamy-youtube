@@ -5,44 +5,82 @@ use std::path::PathBuf;
 #[must_use]
 pub fn event_path_for(
     sync_dir: &Path,
-    channel_name: Option<&str>,
-    video_title: Option<&str>,
+    _channel_name: Option<&str>,
+    _video_title: Option<&str>,
     video_id: &str,
     event_at: &str,
     event_suffix: &str,
 ) -> PathBuf {
-    video_dir_path_for(sync_dir, channel_name, video_title, video_id).join(format!(
+    video_dir_path_for(sync_dir, video_id).join(format!(
         "event_{}_{}.json",
         sanitize_timestamp(event_at),
         event_suffix
     ))
 }
 
-/// Build the canonical path for a video metadata snapshot in the sync database.
+/// Build the canonical path for a raw fetched video-data event.
 #[must_use]
-pub fn video_snapshot_path_for(
-    sync_dir: &Path,
-    channel_name: &str,
-    video_title: &str,
-    video_id: &str,
-    fetched_at: &str,
-) -> PathBuf {
-    video_dir_path_for(sync_dir, Some(channel_name), Some(video_title), video_id).join(format!(
-        "snapshot_{}_video.json",
+pub fn video_fetch_event_path_for(sync_dir: &Path, video_id: &str, fetched_at: &str) -> PathBuf {
+    video_dir_path_for(sync_dir, video_id).join(format!(
+        "event_{}_fetch_video_data.json",
         sanitize_timestamp(fetched_at)
     ))
 }
 
-/// Build the canonical path for a channel metadata snapshot in the sync database.
+/// Build the canonical path for a title observation text file.
 #[must_use]
-pub fn channel_snapshot_path_for(sync_dir: &Path, channel_name: &str, fetched_at: &str) -> PathBuf {
-    sync_dir
-        .join("channels")
-        .join(sanitize_component(channel_name))
-        .join(format!(
-            "snapshot_{}_channel.json",
-            sanitize_timestamp(fetched_at)
-        ))
+pub fn video_title_observation_path_for(
+    sync_dir: &Path,
+    video_id: &str,
+    observed_at: &str,
+    title: &str,
+) -> PathBuf {
+    video_dir_path_for(sync_dir, video_id).join(format!(
+        "event_{}_observe_title_{}.txt",
+        sanitize_timestamp(observed_at),
+        sanitize_component(&normalize_title_for_path(title))
+    ))
+}
+
+// yt[storage.video-thumbnail.layout]
+/// Build the canonical path for a downloaded thumbnail asset.
+#[must_use]
+pub fn video_thumbnail_path_for(
+    sync_dir: &Path,
+    video_id: &str,
+    observed_at: &str,
+    thumbnail_size: &str,
+    source_url: &str,
+) -> PathBuf {
+    let extension = thumbnail_extension_from_url(source_url);
+    video_dir_path_for(sync_dir, video_id).join(format!(
+        "event_{}_thumbnail_{}.{}",
+        sanitize_timestamp(observed_at),
+        sanitize_component(thumbnail_size),
+        extension
+    ))
+}
+
+// yt[storage.video-thumbnail.unchanged-layout]
+/// Build the canonical path for an unchanged-thumbnail observation event.
+#[must_use]
+pub fn video_thumbnail_unchanged_event_path_for(
+    sync_dir: &Path,
+    video_id: &str,
+    observed_at: &str,
+    thumbnail_size: &str,
+) -> PathBuf {
+    video_dir_path_for(sync_dir, video_id).join(format!(
+        "event_{}_thumbnail_{}_unchanged.json",
+        sanitize_timestamp(observed_at),
+        sanitize_component(thumbnail_size)
+    ))
+}
+
+/// Build the canonical directory path for a video in the sync database.
+#[must_use]
+pub fn video_dir_path_for(sync_dir: &Path, video_id: &str) -> PathBuf {
+    sync_dir.join("videos").join(video_id)
 }
 
 /// Build the canonical event-id suffix for a playlist-membership event.
@@ -51,47 +89,34 @@ pub fn playlist_event_suffix(playlist_id: &str) -> String {
     format!("added-to-playlist-{}", sanitize_component(playlist_id))
 }
 
-fn video_dir_path_for(
-    sync_dir: &Path,
-    channel_name: Option<&str>,
-    video_title: Option<&str>,
-    video_id: &str,
-) -> PathBuf {
-    let channel_slug = sanitize_component(channel_name.unwrap_or("unknown-channel"));
-    let title_slug = video_title
-        .map(normalize_title_for_path)
-        .map_or_else(|| video_id.to_owned(), |value| sanitize_component(&value));
-    let video_slug = if title_slug == video_id {
-        title_slug
-    } else {
-        format!("{video_id}-{title_slug}")
-    };
-
-    sync_dir
-        .join("channels")
-        .join(channel_slug)
-        .join("videos")
-        .join(video_slug)
-}
-
 fn sanitize_timestamp(value: &str) -> String {
     value.replace(':', "-")
 }
 
 fn normalize_title_for_path(value: &str) -> String {
     let trimmed = value.trim();
-    if trimmed.len() > "watched ".len()
-        && trimmed[.."watched ".len()].eq_ignore_ascii_case("watched ")
-    {
-        return trimmed["watched ".len()..].trim().to_owned();
+    if let Some(stripped) = strip_ascii_prefix_ignore_case(trimmed, "watched ") {
+        return stripped.trim().to_owned();
     }
-    if trimmed.len() > "watched-".len()
-        && trimmed[.."watched-".len()].eq_ignore_ascii_case("watched-")
-    {
-        return trimmed["watched-".len()..].trim().to_owned();
+    if let Some(stripped) = strip_ascii_prefix_ignore_case(trimmed, "watched-") {
+        return stripped.trim().to_owned();
     }
 
     trimmed.to_owned()
+}
+
+fn strip_ascii_prefix_ignore_case<'a>(value: &'a str, prefix: &str) -> Option<&'a str> {
+    let mut remainder = value;
+    for expected in prefix.chars() {
+        let mut chars = remainder.chars();
+        let actual = chars.next()?;
+        if !actual.eq_ignore_ascii_case(&expected) {
+            return None;
+        }
+        remainder = chars.as_str();
+    }
+
+    Some(remainder)
 }
 
 fn sanitize_component(value: &str) -> String {
@@ -113,5 +138,77 @@ fn sanitize_component(value: &str) -> String {
         "unknown".to_owned()
     } else {
         sanitized.to_owned()
+    }
+}
+
+fn thumbnail_extension_from_url(source_url: &str) -> String {
+    let extension = reqwest::Url::parse(source_url)
+        .ok()
+        .and_then(|url| {
+            url.path_segments()
+                .and_then(|mut segments| segments.next_back().map(str::to_owned))
+        })
+        .and_then(|file_name| {
+            Path::new(&file_name)
+                .extension()
+                .and_then(std::ffi::OsStr::to_str)
+                .map(str::to_ascii_lowercase)
+        });
+
+    extension.unwrap_or_else(|| "bin".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_title_for_path;
+    use super::video_thumbnail_path_for;
+    use super::video_thumbnail_unchanged_event_path_for;
+    use std::path::Path;
+
+    #[test]
+    fn builds_thumbnail_path_from_url_extension() {
+        let path = video_thumbnail_path_for(
+            Path::new("G:/sync-root"),
+            "abc123",
+            "2026-04-02T15:04:05+00:00",
+            "1280x720",
+            "https://example.invalid/path/image.webp?foo=bar",
+        );
+
+        assert_eq!(
+            path.display().to_string().replace('\\', "/"),
+            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_thumbnail_1280x720.webp"
+        );
+    }
+
+    #[test]
+    fn builds_unchanged_thumbnail_event_path() {
+        let path = video_thumbnail_unchanged_event_path_for(
+            Path::new("G:/sync-root"),
+            "abc123",
+            "2026-04-02T15:04:05+00:00",
+            "120x90",
+        );
+
+        assert_eq!(
+            path.display().to_string().replace('\\', "/"),
+            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_thumbnail_120x90_unchanged.json"
+        );
+    }
+
+    #[test]
+    fn normalizes_ascii_watched_prefix_for_unicode_title() {
+        assert_eq!(
+            normalize_title_for_path("Watched 【東方ヴォーカルPV】LOVE EAST【暁Records公式】"),
+            "【東方ヴォーカルPV】LOVE EAST【暁Records公式】"
+        );
+    }
+
+    #[test]
+    fn leaves_unicode_title_without_prefix_unchanged() {
+        assert_eq!(
+            normalize_title_for_path("【東方ヴォーカルPV】LOVE EAST【暁Records公式】"),
+            "【東方ヴォーカルPV】LOVE EAST【暁Records公式】"
+        );
     }
 }

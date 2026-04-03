@@ -1,6 +1,6 @@
 # CLI
 
-This specification covers the planned command-line behavior for `teamy-youtube`.
+This specification covers the command-line behavior for `teamy-youtube`.
 
 ## Command Surface
 
@@ -17,7 +17,7 @@ yt[command.surface.sync]
 The CLI must expose a `sync` command group for configuring the sync directory and ingesting datasources into the filesystem database.
 
 yt[command.surface.fetch]
-The CLI must expose a `fetch` command group for retrieving metadata snapshots from external sources.
+The CLI must expose a `fetch` command group for retrieving raw external metadata events.
 
 ## Parser Model
 
@@ -42,7 +42,7 @@ yt[config.sync-directory.open-opens-manager]
 `sync dir open` must open the configured sync directory in the platform file manager.
 
 yt[config.sync-directory.required-for-sync]
-The `sync run` workflow must fail with a user-facing error if the sync directory is not configured.
+The `sync` workflow must fail with a user-facing error if the sync directory is not configured.
 
 yt[path.home.env-overrides-platform]
 If `TEAMY_YOUTUBE_HOME` is set to a non-empty value, it must take precedence over the platform-derived application home directory.
@@ -74,25 +74,64 @@ yt[fetch.video.sync-dir-required]
 yt[fetch.video.command]
 The CLI must expose `fetch video <id>` for retrieving metadata for a specific YouTube video ID.
 
-yt[fetch.video.writes-snapshots]
-`fetch video <id>` must write canonical video and channel metadata snapshot files beneath the sync directory.
+yt[fetch.video.writes-terminal-events]
+`fetch video <id>` must write a terminal fetch result beneath the video's sync-directory folder.
+
+yt[fetch.video.raw-response-persistence]
+When a `YouTube` Data API fetch succeeds, `fetch video <id>` must persist the raw API response body as `event_<timestamp>_fetch_video_data.json`.
+
+yt[fetch.video.negative-result-persistence]
+When a `YouTube` Data API fetch reports that a video is missing or unavailable, `fetch video <id>` must persist a timestamped terminal event describing that outcome.
 
 ## Sync Workflow
 
 yt[sync.takeout.command]
-The CLI must expose `sync run takeout` as the primary Google Takeout ingestion workflow.
+The CLI must expose `sync takeout` as the primary Google Takeout ingestion workflow.
 
-yt[sync.postgres.command]
-The CLI must expose `sync run postgres` for bidirectional synchronization between the filesystem database and Postgres-backed generic event storage.
+yt[sync.fetch-videos.command]
+The CLI must expose `sync videos` for fetching raw video API responses for videos already present in the filesystem database.
 
-yt[sync.postgres.database-url]
-`sync run postgres` must accept a Postgres connection string from `--database-url`, `TEAMY_YOUTUBE_DATABASE_URL`, or `DATABASE_URL`.
+yt[sync.fetch-videos.limit]
+`sync videos` may accept `--fetch-limit` to stop after fetching a bounded number of missing videos for testing.
 
-yt[sync.postgres.bidirectional]
-`sync run postgres` must upsert generic event records from the filesystem database into Postgres and must write missing canonical event files back from Postgres into the filesystem database.
+yt[sync.fetch-videos.terminal-skip]
+`sync videos` must skip videos that already have any terminal fetch event recorded in the filesystem database.
+
+yt[sync.fetch-videos.raw-persistence]
+`sync videos` must persist raw API response bodies and terminal negative results into the filesystem database.
+
+yt[sync.thumbnails.command]
+The CLI must expose `sync thumbnails` for downloading thumbnail assets from previously fetched raw video data.
+
+yt[sync.thumbnails.latest-fetch]
+`sync thumbnails` must derive thumbnails from the latest successful raw fetch event recorded for each video.
+
+yt[sync.thumbnails.event-assets]
+`sync thumbnails` must write thumbnail files using the thumbnail-observation timestamp, with a canonical shape of `event_<timestamp>_thumbnail_<size>.<ext>`.
+
+yt[sync.thumbnails.size-keyed-assets]
+`sync thumbnails` must key thumbnail asset filenames by the thumbnail dimensions when those dimensions are available.
+
+yt[sync.thumbnails.default-no-refetch]
+Without explicit refresh arguments, `sync thumbnails` must only ensure that a thumbnail asset exists and must not re-download sizes that already have a materialized thumbnail asset.
+
+yt[sync.thumbnails.refresh-video-age]
+`sync thumbnails` may accept `--refresh-videos-newer-than <age>` to limit refresh attempts to recently published videos.
+
+yt[sync.thumbnails.refresh-thumbnail-age]
+`sync thumbnails` may accept `--refresh-thumbnails-older-than <age>` to limit refresh attempts to thumbnails whose latest observation is old enough.
+
+yt[sync.thumbnails.refresh-requires-both-ages]
+If either thumbnail-refresh age argument is provided, the other must also be provided.
+
+yt[sync.thumbnails.unchanged-event]
+If a thumbnail refresh fetches bytes identical to the latest materialized thumbnail asset for that size, `sync thumbnails` must record an unchanged event instead of duplicating the asset contents.
+
+yt[sync.all.command]
+The CLI must expose bare `sync` with no nested sync subcommand, and it must run `sync takeout`, then `sync videos`, then `sync thumbnails` with default arguments.
 
 yt[sync.takeout.default-discovery]
-If `sync run takeout` is invoked without `--input-dir`, it must discover candidate takeout files using the `teamy-mft` crate rather than spawning the `teamy-mft` executable.
+If `sync takeout` is invoked without `--input-dir`, it must discover candidate takeout files using the `teamy-mft` crate rather than spawning the `teamy-mft` executable.
 
 yt[sync.takeout.latest-history]
 Default takeout discovery must select the most recent available `watch-history.json` candidate.
@@ -101,7 +140,7 @@ yt[sync.takeout.latest-playlists]
 Default takeout discovery must select the most recent available CSV for each playlist.
 
 yt[sync.takeout.dry-run]
-`sync run takeout --dry-run` must print a short summary, must not write to the sync directory, and must include a sample preview of the canonical output paths for a video that appears in both watch history and at least one playlist when such an overlap exists.
+`sync takeout --dry-run` must print a short summary, must not write to the sync directory, and must include a sample preview of the canonical output paths for a video that appears in both watch history and at least one playlist when such an overlap exists.
 
 yt[sync.takeout.multiple-playlists]
 Takeout sync must ingest playlist CSVs generically rather than being hard-coded only to Watch Later.

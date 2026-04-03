@@ -69,11 +69,11 @@ pub enum Command {
     Api(ApiArgs),
     /// Inspect or manage the local throwaway cache directory.
     Cache(CacheArgs),
-    /// Fetch metadata from external sources into filesystem snapshots.
+    /// Fetch metadata from external sources into the filesystem database.
     Fetch(FetchArgs),
     /// Inspect or open the roaming home directory.
     Home(HomeArgs),
-    /// Reconcile referenced videos with local metadata snapshots.
+    /// Reconcile referenced videos with local filesystem-backed data.
     Sync(SyncArgs),
 }
 

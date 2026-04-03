@@ -5,7 +5,7 @@ pub mod cli;
 pub mod fs_db;
 pub mod logging_init;
 pub mod paths;
-pub mod postgres_sync;
+pub mod sync_progress;
 pub mod takeout;
 pub mod youtube_api;
 
