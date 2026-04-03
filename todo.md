@@ -1,2 +1,0 @@
-- plaintext api key in our snapshot and event files in the source-url field is bad
-- postgres integration isn't set to integrate with the old nanuak data yet
