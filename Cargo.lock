@@ -1122,45 +1122,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "figue"
-version = "2.0.0"
-source = "git+https://github.com/TeamDman/figue?rev=0e82172c21e9ce0ecc4521ff01f6dbf56342867f#0e82172c21e9ce0ecc4521ff01f6dbf56342867f"
-dependencies = [
- "arbitrary",
- "ariadne",
- "camino",
- "facet",
- "facet-core",
- "facet-error",
- "facet-format",
- "facet-json",
- "facet-pretty",
- "facet-reflect",
- "figue-attrs 2.0.0 (git+https://github.com/TeamDman/figue?rev=0e82172c21e9ce0ecc4521ff01f6dbf56342867f)",
- "heck",
- "indexmap",
- "owo-colors",
- "rand 0.9.2",
- "strip-ansi-escapes",
- "strsim",
- "supports-color 3.0.2",
- "tracing",
- "unicode-width",
-]
-
-[[package]]
 name = "figue-attrs"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b09be1cd2a5c7295aa5dae9dd5585db38b3ab59c751336ebd4d692b867415703"
-dependencies = [
- "facet",
-]
-
-[[package]]
-name = "figue-attrs"
-version = "2.0.0"
-source = "git+https://github.com/TeamDman/figue?rev=0e82172c21e9ce0ecc4521ff01f6dbf56342867f#0e82172c21e9ce0ecc4521ff01f6dbf56342867f"
 dependencies = [
  "facet",
 ]
@@ -3134,9 +3099,9 @@ dependencies = [
 
 [[package]]
 name = "teamy-figue"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d01850a04c8aeb4535b44870cf7de2ff17de883d8cff17a2908f010945adacec"
+checksum = "8e24674e32ea30c8663657a7fb66f98b3c3c5bfaaaf585dfc14155edcd0386c2"
 dependencies = [
  "arbitrary",
  "ariadne",
@@ -3148,11 +3113,12 @@ dependencies = [
  "facet-json",
  "facet-pretty",
  "facet-reflect",
- "figue-attrs 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "figue-attrs",
  "heck",
  "indexmap",
  "owo-colors",
  "rand 0.9.2",
+ "rand_chacha 0.9.0",
  "strip-ansi-escapes",
  "strsim",
  "supports-color 3.0.2",
@@ -3270,10 +3236,10 @@ dependencies = [
  "facet-default",
  "facet-json",
  "facet-reflect",
- "figue",
  "humantime",
  "open",
  "reqwest",
+ "teamy-figue",
  "teamy-mft",
  "teamy-windows 0.9.0",
  "tempfile",

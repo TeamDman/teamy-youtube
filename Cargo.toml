@@ -27,7 +27,7 @@ facet-core = "0.44.1"
 facet-default = "0.44.1"
 facet-json = "0.44.1"
 facet-reflect = "0.44.1"
-figue = { git = "https://github.com/TeamDman/figue", rev = "0e82172c21e9ce0ecc4521ff01f6dbf56342867f", features = ["arbitrary"] }
+figue = { package = "teamy-figue", version = "2.0.1", features = ["arbitrary"] }
 humantime = "2.2.0"
 open = "5"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
