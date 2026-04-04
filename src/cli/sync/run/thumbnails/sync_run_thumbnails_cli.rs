@@ -36,7 +36,7 @@ struct ThumbnailRefreshPolicy {
     refresh_thumbnails_older_than: TimeDelta,
 }
 
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct ThumbnailSyncCounts {
     source_videos: usize,
     discovered: usize,
@@ -48,7 +48,8 @@ struct ThumbnailSyncCounts {
 
 #[derive(Debug, Default, Eq, PartialEq)]
 struct ThumbnailVideoOutcome {
-    counts: ThumbnailSyncCounts,
+    unchanged: usize,
+    downloaded: usize,
     bytes_processed: u64,
     last_written_file: Option<String>,
 }
@@ -56,14 +57,32 @@ struct ThumbnailVideoOutcome {
 #[derive(Debug, Eq, PartialEq)]
 struct ThumbnailSyncPlan {
     candidate_video_count: usize,
-    planned_video_ids: Vec<crate::takeout::YouTubeVideoId>,
+    inspected_video_count: usize,
     skipped_due_to_limit_count: usize,
+    counts: ThumbnailSyncCounts,
+    work_items: Vec<ThumbnailWorkItem>,
 }
 
-struct VideoThumbnailContext<'a> {
+#[derive(Debug, Eq, PartialEq)]
+struct ThumbnailVideoPlan {
+    counts: ThumbnailSyncCounts,
+    work_items: Vec<ThumbnailWorkItem>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ThumbnailWorkItem {
+    video_id: String,
+    thumbnail: crate::youtube_api::YouTubeThumbnail,
+    thumbnail_size: String,
+    existing_asset_path: Option<PathBuf>,
+}
+
+struct ThumbnailWorkContext<'a> {
     sync_dir: &'a Path,
     client: &'a reqwest::Client,
-    video_id: &'a str,
+}
+
+struct ThumbnailInspectionContext<'a> {
     refresh_policy: Option<&'a ThumbnailRefreshPolicy>,
     published_at: Option<&'a str>,
     thumbnail_index: &'a crate::fs_db::VideoThumbnailIndex,
@@ -84,17 +103,19 @@ impl SyncRunThumbnailsArgs {
             refresh_thumbnails_older_than.as_deref(),
         )?;
         let sync_dir = crate::paths::try_get_sync_dir()?;
-        let plan = build_thumbnail_sync_plan(&sync_dir, limit)?;
+        let plan =
+            build_thumbnail_sync_plan_with_refresh(&sync_dir, limit, refresh_policy.as_ref())
+                .await?;
         let client = reqwest::Client::new();
         let started_at = Instant::now();
-        let mut progress = crate::sync_progress::SyncProgress::new(plan.planned_video_ids.len());
-
-        let mut counts = ThumbnailSyncCounts::default();
+        let mut progress = crate::sync_progress::SyncProgress::new(plan.work_items.len());
+        let mut counts = plan.counts.clone();
 
         info!(
             sync_dir = %sync_dir.display(),
             candidate_video_count = plan.candidate_video_count,
-            thumbnail_planned_video_count = plan.planned_video_ids.len(),
+            thumbnail_planned_video_count = plan.inspected_video_count,
+            thumbnail_work_item_count = plan.work_items.len(),
             thumbnail_limit = %format_optional_limit(limit),
             thumbnail_skipped_due_to_limit_count = plan.skipped_due_to_limit_count,
             refresh_videos_newer_than = format_optional_age(refresh_videos_newer_than.as_deref()),
@@ -102,20 +123,15 @@ impl SyncRunThumbnailsArgs {
             "starting sync thumbnails"
         );
 
-        for video_id in &plan.planned_video_ids {
-            let video_outcome = process_video_thumbnails(
-                &sync_dir,
-                &client,
-                video_id.as_str(),
-                refresh_policy.as_ref(),
-            )
-            .await?;
-            counts.source_videos += video_outcome.counts.source_videos;
-            counts.discovered += video_outcome.counts.discovered;
-            counts.existing += video_outcome.counts.existing;
-            counts.refresh_eligible += video_outcome.counts.refresh_eligible;
-            counts.unchanged += video_outcome.counts.unchanged;
-            counts.downloaded += video_outcome.counts.downloaded;
+        let work_context = ThumbnailWorkContext {
+            sync_dir: &sync_dir,
+            client: &client,
+        };
+
+        for work_item in &plan.work_items {
+            let video_outcome = process_thumbnail_work_item(&work_context, work_item).await?;
+            counts.unchanged += video_outcome.unchanged;
+            counts.downloaded += video_outcome.downloaded;
             progress.record_item(
                 video_outcome.bytes_processed,
                 video_outcome.last_written_file,
@@ -127,8 +143,9 @@ impl SyncRunThumbnailsArgs {
         println!("candidate-video-count={}", plan.candidate_video_count);
         println!(
             "thumbnail-planned-video-count={}",
-            plan.planned_video_ids.len()
+            plan.inspected_video_count
         );
+        println!("thumbnail-work-item-count={}", plan.work_items.len());
         println!(
             "thumbnail-fetch-source-video-count={}",
             counts.source_videos
@@ -158,33 +175,52 @@ impl SyncRunThumbnailsArgs {
     }
 }
 
-fn build_thumbnail_sync_plan(
+async fn build_thumbnail_sync_plan_with_refresh(
     sync_dir: &Path,
     limit: Option<usize>,
+    refresh_policy: Option<&ThumbnailRefreshPolicy>,
 ) -> eyre::Result<ThumbnailSyncPlan> {
-    let mut planned_video_ids = crate::fs_db::load_video_ids_from_sync_dir(sync_dir)?;
-    let candidate_video_count = planned_video_ids.len();
+    let mut inspected_video_ids = crate::fs_db::load_video_ids_from_sync_dir(sync_dir)?;
+    let candidate_video_count = inspected_video_ids.len();
     if let Some(limit) = limit {
-        planned_video_ids.truncate(limit);
+        inspected_video_ids.truncate(limit);
+    }
+
+    let inspected_video_count = inspected_video_ids.len();
+    let mut counts = ThumbnailSyncCounts::default();
+    let mut work_items = Vec::new();
+
+    for video_id in inspected_video_ids {
+        let video_plan =
+            inspect_video_thumbnail_work(sync_dir, video_id.as_str(), refresh_policy).await?;
+        counts.source_videos += video_plan.counts.source_videos;
+        counts.discovered += video_plan.counts.discovered;
+        counts.existing += video_plan.counts.existing;
+        counts.refresh_eligible += video_plan.counts.refresh_eligible;
+        work_items.extend(video_plan.work_items);
     }
 
     Ok(ThumbnailSyncPlan {
-        skipped_due_to_limit_count: candidate_video_count.saturating_sub(planned_video_ids.len()),
+        skipped_due_to_limit_count: candidate_video_count.saturating_sub(inspected_video_count),
         candidate_video_count,
-        planned_video_ids,
+        inspected_video_count,
+        counts,
+        work_items,
     })
 }
 
-async fn process_video_thumbnails(
+async fn inspect_video_thumbnail_work(
     sync_dir: &Path,
-    client: &reqwest::Client,
     video_id: &str,
     refresh_policy: Option<&ThumbnailRefreshPolicy>,
-) -> eyre::Result<ThumbnailVideoOutcome> {
+) -> eyre::Result<ThumbnailVideoPlan> {
     let Some(fetch_event_path) =
         crate::fs_db::latest_successful_video_fetch_event_path(sync_dir, video_id)?
     else {
-        return Ok(ThumbnailVideoOutcome::default());
+        return Ok(ThumbnailVideoPlan {
+            counts: ThumbnailSyncCounts::default(),
+            work_items: Vec::new(),
+        });
     };
 
     let raw_response_body = tokio::fs::read_to_string(&fetch_event_path).await?;
@@ -194,34 +230,32 @@ async fn process_video_thumbnails(
         crate::youtube_api::extract_thumbnails_from_video_response(&raw_response_body)?;
     let thumbnail_index = crate::fs_db::load_video_thumbnail_index(sync_dir, video_id)?;
 
-    let context = VideoThumbnailContext {
-        sync_dir,
-        client,
-        video_id,
+    let context = ThumbnailInspectionContext {
         refresh_policy,
         published_at: published_at.as_deref(),
         thumbnail_index: &thumbnail_index,
     };
-    let mut outcome = ThumbnailVideoOutcome {
+    let mut plan = ThumbnailVideoPlan {
         counts: ThumbnailSyncCounts {
             source_videos: 1,
             discovered: thumbnails.len(),
             ..ThumbnailSyncCounts::default()
         },
-        ..ThumbnailVideoOutcome::default()
+        work_items: Vec::new(),
     };
 
     for thumbnail in thumbnails {
-        process_single_thumbnail(&context, thumbnail, &mut outcome).await?;
+        inspect_single_thumbnail(video_id, &context, thumbnail, &mut plan)?;
     }
 
-    Ok(outcome)
+    Ok(plan)
 }
 
-async fn process_single_thumbnail(
-    context: &VideoThumbnailContext<'_>,
+fn inspect_single_thumbnail(
+    video_id: &str,
+    context: &ThumbnailInspectionContext<'_>,
     thumbnail: crate::youtube_api::YouTubeThumbnail,
-    outcome: &mut ThumbnailVideoOutcome,
+    plan: &mut ThumbnailVideoPlan,
 ) -> eyre::Result<()> {
     let thumbnail_size = thumbnail.size_key();
     let existing_asset = context.thumbnail_index.latest_asset_for(&thumbnail_size);
@@ -237,18 +271,32 @@ async fn process_single_thumbnail(
             latest_observation.map(|value| value.observed_at.as_str()),
         )?
     {
-        outcome.counts.existing += 1;
+        plan.counts.existing += 1;
         return Ok(());
     }
 
     if existing_asset.is_some() {
-        outcome.counts.refresh_eligible += 1;
+        plan.counts.refresh_eligible += 1;
     }
 
+    plan.work_items.push(ThumbnailWorkItem {
+        video_id: video_id.to_owned(),
+        thumbnail,
+        thumbnail_size,
+        existing_asset_path: existing_asset.map(|value| value.path.clone()),
+    });
+
+    Ok(())
+}
+
+async fn process_thumbnail_work_item(
+    context: &ThumbnailWorkContext<'_>,
+    work_item: &ThumbnailWorkItem,
+) -> eyre::Result<ThumbnailVideoOutcome> {
     let observed_at = Local::now().to_rfc3339();
     let bytes = context
         .client
-        .get(&thumbnail.url)
+        .get(&work_item.thumbnail.url)
         .send()
         .await?
         .error_for_status()?
@@ -256,42 +304,46 @@ async fn process_single_thumbnail(
         .await?;
     let downloaded_bytes = u64::try_from(bytes.len())?;
 
-    if let Some(existing_asset) = existing_asset {
-        let existing_bytes = tokio::fs::read(&existing_asset.path).await?;
+    if let Some(existing_asset_path) = &work_item.existing_asset_path {
+        let existing_bytes = tokio::fs::read(existing_asset_path).await?;
         if existing_bytes == bytes {
             let (unchanged_event_path, event_bytes) = write_unchanged_thumbnail_event(
                 context.sync_dir,
                 &observed_at,
-                context.video_id,
-                &thumbnail,
-                &thumbnail_size,
-                &existing_asset.path,
+                &work_item.video_id,
+                &work_item.thumbnail,
+                &work_item.thumbnail_size,
+                existing_asset_path,
             )
             .await?;
-            outcome.counts.unchanged += 1;
-            outcome.bytes_processed += event_bytes;
-            outcome.last_written_file = Some(unchanged_event_path.display().to_string());
-            return Ok(());
+            return Ok(ThumbnailVideoOutcome {
+                unchanged: 1,
+                downloaded: 0,
+                bytes_processed: event_bytes,
+                last_written_file: Some(unchanged_event_path.display().to_string()),
+            });
         }
     }
 
     // yt[sync.thumbnails.event-assets]
     let thumbnail_path = crate::fs_db::video_thumbnail_path_for(
         context.sync_dir,
-        context.video_id,
+        &work_item.video_id,
         &observed_at,
-        &thumbnail_size,
-        &thumbnail.url,
+        &work_item.thumbnail_size,
+        &work_item.thumbnail.url,
     );
     if let Some(parent) = thumbnail_path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
 
     tokio::fs::write(&thumbnail_path, bytes).await?;
-    outcome.counts.downloaded += 1;
-    outcome.bytes_processed += downloaded_bytes;
-    outcome.last_written_file = Some(thumbnail_path.display().to_string());
-    Ok(())
+    Ok(ThumbnailVideoOutcome {
+        unchanged: 0,
+        downloaded: 1,
+        bytes_processed: downloaded_bytes,
+        last_written_file: Some(thumbnail_path.display().to_string()),
+    })
 }
 
 fn parse_refresh_policy(
@@ -393,10 +445,12 @@ async fn write_unchanged_thumbnail_event(
 
 #[cfg(test)]
 mod tests {
+    use super::build_thumbnail_sync_plan_with_refresh;
     use super::format_optional_age;
     use super::format_optional_limit;
     use super::parse_refresh_policy;
     use super::should_refresh_thumbnail;
+    use tempfile::TempDir;
 
     #[test]
     fn formats_missing_optional_age() {
@@ -445,5 +499,72 @@ mod tests {
             )
             .expect("policy should evaluate")
         );
+    }
+
+    #[tokio::test]
+    async fn thumbnail_plan_skips_already_materialized_thumbnail_work() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let video_dir = temp_dir.path().join("videos").join("abc123");
+        std::fs::create_dir_all(&video_dir).expect("video dir should be created");
+
+        let fetch_event_path = crate::fs_db::video_fetch_event_path_for(
+            temp_dir.path(),
+            "abc123",
+            "2026-04-04T00:00:00+00:00",
+        );
+        std::fs::write(
+            &fetch_event_path,
+            r#"{"items":[{"id":"abc123","contentDetails":{"duration":"PT1M"},"snippet":{"publishedAt":"2026-01-01T00:00:00Z","channelId":"UC123","title":"Example","description":"desc","channelTitle":"Channel","thumbnails":{"default":{"url":"https://example.invalid/default.jpg","width":120,"height":90}}},"statistics":null,"status":null}]}"#,
+        )
+        .expect("fetch event should be written");
+
+        let thumbnail_path = crate::fs_db::video_thumbnail_path_for(
+            temp_dir.path(),
+            "abc123",
+            "2026-04-04T00:01:00+00:00",
+            "120x90",
+            "https://example.invalid/default.jpg",
+        );
+        std::fs::write(&thumbnail_path, b"existing-thumbnail").expect("thumbnail should write");
+
+        let plan = build_thumbnail_sync_plan_with_refresh(temp_dir.path(), None, None)
+            .await
+            .expect("plan should build");
+
+        assert_eq!(plan.candidate_video_count, 1);
+        assert_eq!(plan.inspected_video_count, 1);
+        assert_eq!(plan.counts.source_videos, 1);
+        assert_eq!(plan.counts.discovered, 1);
+        assert_eq!(plan.counts.existing, 1);
+        assert!(plan.work_items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn thumbnail_plan_includes_missing_thumbnail_work() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let video_dir = temp_dir.path().join("videos").join("abc123");
+        std::fs::create_dir_all(&video_dir).expect("video dir should be created");
+
+        let fetch_event_path = crate::fs_db::video_fetch_event_path_for(
+            temp_dir.path(),
+            "abc123",
+            "2026-04-04T00:00:00+00:00",
+        );
+        std::fs::write(
+            &fetch_event_path,
+            r#"{"items":[{"id":"abc123","contentDetails":{"duration":"PT1M"},"snippet":{"publishedAt":"2026-01-01T00:00:00Z","channelId":"UC123","title":"Example","description":"desc","channelTitle":"Channel","thumbnails":{"default":{"url":"https://example.invalid/default.jpg","width":120,"height":90}}},"statistics":null,"status":null}]}"#,
+        )
+        .expect("fetch event should be written");
+
+        let plan = build_thumbnail_sync_plan_with_refresh(temp_dir.path(), None, None)
+            .await
+            .expect("plan should build");
+
+        assert_eq!(plan.candidate_video_count, 1);
+        assert_eq!(plan.inspected_video_count, 1);
+        assert_eq!(plan.counts.source_videos, 1);
+        assert_eq!(plan.counts.discovered, 1);
+        assert_eq!(plan.counts.existing, 0);
+        assert_eq!(plan.work_items.len(), 1);
     }
 }

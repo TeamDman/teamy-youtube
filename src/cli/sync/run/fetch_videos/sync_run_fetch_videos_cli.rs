@@ -239,9 +239,11 @@ fn format_optional_limit(value: Option<usize>) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::build_fetch_video_plan;
     use super::format_optional_limit;
     use crate::fs_db::video_title_observation_path_for;
     use std::path::Path;
+    use tempfile::TempDir;
 
     #[test]
     fn formats_missing_fetch_limit() {
@@ -269,5 +271,46 @@ mod tests {
         );
 
         assert!(path.display().to_string().contains("observe_title"));
+    }
+
+    #[test]
+    fn fetch_video_plan_skips_already_terminal_videos() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let video_dir = temp_dir.path().join("videos").join("abc123");
+        std::fs::create_dir_all(&video_dir).expect("video dir should be created");
+        let event_path = crate::fs_db::video_fetch_event_path_for(
+            temp_dir.path(),
+            "abc123",
+            "2026-04-04T00:00:00+00:00",
+        );
+        std::fs::write(&event_path, "{}\n").expect("event file should be written");
+
+        let plan = build_fetch_video_plan(temp_dir.path(), None).expect("plan should build");
+
+        assert_eq!(plan.existing_fetch_count, 1);
+        assert_eq!(plan.total_missing_video_count, 0);
+        assert!(plan.missing_video_ids.is_empty());
+    }
+
+    #[test]
+    fn fetch_video_plan_includes_only_missing_videos() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        std::fs::create_dir_all(temp_dir.path().join("videos").join("abc123"))
+            .expect("first video dir should be created");
+        std::fs::create_dir_all(temp_dir.path().join("videos").join("def456"))
+            .expect("second video dir should be created");
+        let event_path = crate::fs_db::video_fetch_event_path_for(
+            temp_dir.path(),
+            "abc123",
+            "2026-04-04T00:00:00+00:00",
+        );
+        std::fs::write(&event_path, "{}\n").expect("event file should be written");
+
+        let plan = build_fetch_video_plan(temp_dir.path(), None).expect("plan should build");
+
+        assert_eq!(plan.existing_fetch_count, 1);
+        assert_eq!(plan.total_missing_video_count, 1);
+        assert_eq!(plan.missing_video_ids.len(), 1);
+        assert_eq!(plan.missing_video_ids[0].as_str(), "def456");
     }
 }
