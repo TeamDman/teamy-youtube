@@ -1,5 +1,6 @@
 mod sync_database_summary;
 mod sync_paths;
+mod thumbnail_unavailable_event_file;
 mod thumbnail_unchanged_event_file;
 mod video_event_file;
 mod video_storage;
@@ -9,6 +10,7 @@ mod write_takeout_sync;
 
 pub use sync_database_summary::*;
 pub use sync_paths::*;
+pub use thumbnail_unavailable_event_file::*;
 pub use thumbnail_unchanged_event_file::*;
 pub use video_event_file::*;
 pub use video_storage::*;

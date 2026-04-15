@@ -41,6 +41,7 @@ struct ThumbnailSyncCounts {
     source_videos: usize,
     discovered: usize,
     existing: usize,
+    unavailable: usize,
     refresh_eligible: usize,
     unchanged: usize,
     downloaded: usize,
@@ -103,6 +104,13 @@ impl SyncRunThumbnailsArgs {
             refresh_thumbnails_older_than.as_deref(),
         )?;
         let sync_dir = crate::paths::try_get_sync_dir()?;
+        info!(
+            sync_dir = %sync_dir.display(),
+            thumbnail_limit = %format_optional_limit(limit),
+            refresh_videos_newer_than = format_optional_age(refresh_videos_newer_than.as_deref()),
+            refresh_thumbnails_older_than = format_optional_age(refresh_thumbnails_older_than.as_deref()),
+            "gathering existing thumbnail sync state"
+        );
         let plan =
             build_thumbnail_sync_plan_with_refresh(&sync_dir, limit, refresh_policy.as_ref())
                 .await?;
@@ -152,6 +160,7 @@ impl SyncRunThumbnailsArgs {
         );
         println!("thumbnail-discovered-count={}", counts.discovered);
         println!("thumbnail-existing-count={}", counts.existing);
+        println!("thumbnail-unavailable-count={}", counts.unavailable);
         println!(
             "thumbnail-refresh-eligible-count={}",
             counts.refresh_eligible
@@ -196,6 +205,7 @@ async fn build_thumbnail_sync_plan_with_refresh(
         counts.source_videos += video_plan.counts.source_videos;
         counts.discovered += video_plan.counts.discovered;
         counts.existing += video_plan.counts.existing;
+        counts.unavailable += video_plan.counts.unavailable;
         counts.refresh_eligible += video_plan.counts.refresh_eligible;
         work_items.extend(video_plan.work_items);
     }
@@ -264,15 +274,20 @@ fn inspect_single_thumbnail(
         .latest_observation_for(&thumbnail_size);
 
     // yt[sync.thumbnails.default-no-refetch]
-    if existing_asset.is_some()
-        && !should_refresh_thumbnail(
+    if existing_asset.is_some() || latest_observation.is_some() {
+        let should_refresh = should_refresh_thumbnail(
             context.refresh_policy,
             context.published_at,
             latest_observation.map(|value| value.observed_at.as_str()),
-        )?
-    {
-        plan.counts.existing += 1;
-        return Ok(());
+        )?;
+        if !should_refresh {
+            if existing_asset.is_some() {
+                plan.counts.existing += 1;
+            } else {
+                plan.counts.unavailable += 1;
+            }
+            return Ok(());
+        }
     }
 
     if existing_asset.is_some() {
@@ -294,14 +309,41 @@ async fn process_thumbnail_work_item(
     work_item: &ThumbnailWorkItem,
 ) -> eyre::Result<ThumbnailVideoOutcome> {
     let observed_at = Local::now().to_rfc3339();
-    let bytes = context
-        .client
-        .get(&work_item.thumbnail.url)
-        .send()
-        .await?
-        .error_for_status()?
-        .bytes()
-        .await?;
+    let response = context.client.get(&work_item.thumbnail.url).send().await?;
+    if !response.status().is_success() {
+        let status = response.status();
+        if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::FORBIDDEN {
+            let (event_path, event_bytes) = write_unavailable_thumbnail_event(
+                context.sync_dir,
+                &observed_at,
+                &work_item.video_id,
+                &work_item.thumbnail,
+                &work_item.thumbnail_size,
+                status.as_u16(),
+            )
+            .await?;
+            info!(
+                video_id = work_item.video_id,
+                thumbnail_size = work_item.thumbnail_size,
+                thumbnail_url = work_item.thumbnail.url,
+                status_code = status.as_u16(),
+                event_path = %event_path.display(),
+                "thumbnail unavailable; recorded observation and continuing"
+            );
+            return Ok(ThumbnailVideoOutcome {
+                unchanged: 0,
+                downloaded: 0,
+                bytes_processed: event_bytes,
+                last_written_file: Some(event_path.display().to_string()),
+            });
+        }
+
+        eyre::bail!(
+            "thumbnail request failed with status {status} for {}",
+            work_item.thumbnail.url
+        );
+    }
+    let bytes = response.bytes().await?;
     let downloaded_bytes = u64::try_from(bytes.len())?;
 
     if let Some(existing_asset_path) = &work_item.existing_asset_path {
@@ -409,6 +451,32 @@ fn format_optional_age(value: Option<&str>) -> &str {
 
 fn format_optional_limit(value: Option<usize>) -> String {
     value.map_or_else(|| "none".to_owned(), |inner| inner.to_string())
+}
+
+async fn write_unavailable_thumbnail_event(
+    sync_dir: &Path,
+    observed_at: &str,
+    video_id: &str,
+    thumbnail: &crate::youtube_api::YouTubeThumbnail,
+    thumbnail_size: &str,
+    status_code: u16,
+) -> eyre::Result<(PathBuf, u64)> {
+    let unavailable_event_path = crate::fs_db::video_thumbnail_unavailable_event_path_for(
+        sync_dir,
+        video_id,
+        observed_at,
+        thumbnail_size,
+    );
+    let event_file = crate::fs_db::ThumbnailUnavailableEventFile {
+        observed_at: observed_at.to_owned(),
+        video_id: video_id.to_owned(),
+        thumbnail_size: thumbnail_size.to_owned(),
+        source_url: thumbnail.url.clone(),
+        status_code,
+    };
+    let content = facet_json::to_string_pretty(&event_file)?;
+    tokio::fs::write(&unavailable_event_path, &content).await?;
+    Ok((unavailable_event_path, u64::try_from(content.len())?))
 }
 
 // yt[sync.thumbnails.unchanged-event]
@@ -536,6 +604,42 @@ mod tests {
         assert_eq!(plan.counts.source_videos, 1);
         assert_eq!(plan.counts.discovered, 1);
         assert_eq!(plan.counts.existing, 1);
+        assert!(plan.work_items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn thumbnail_plan_skips_previously_unavailable_thumbnail_work() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let video_dir = temp_dir.path().join("videos").join("abc123");
+        std::fs::create_dir_all(&video_dir).expect("video dir should be created");
+
+        let fetch_event_path = crate::fs_db::video_fetch_event_path_for(
+            temp_dir.path(),
+            "abc123",
+            "2026-04-04T00:00:00+00:00",
+        );
+        std::fs::write(
+            &fetch_event_path,
+            r#"{"items":[{"id":"abc123","contentDetails":{"duration":"PT1M"},"snippet":{"publishedAt":"2026-01-01T00:00:00Z","channelId":"UC123","title":"Example","description":"desc","channelTitle":"Channel","thumbnails":{"default":{"url":"https://example.invalid/default.jpg","width":120,"height":90}}},"statistics":null,"status":null}]}"#,
+        )
+        .expect("fetch event should be written");
+
+        let unavailable_event_path = crate::fs_db::video_thumbnail_unavailable_event_path_for(
+            temp_dir.path(),
+            "abc123",
+            "2026-04-04T00:01:00+00:00",
+            "120x90",
+        );
+        std::fs::write(&unavailable_event_path, "{}\n")
+            .expect("unavailable event should be written");
+
+        let plan = build_thumbnail_sync_plan_with_refresh(temp_dir.path(), None, None)
+            .await
+            .expect("plan should build");
+
+        assert_eq!(plan.counts.source_videos, 1);
+        assert_eq!(plan.counts.discovered, 1);
+        assert_eq!(plan.counts.unavailable, 1);
         assert!(plan.work_items.is_empty());
     }
 

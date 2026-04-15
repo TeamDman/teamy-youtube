@@ -236,6 +236,15 @@ fn parse_thumbnail_observation_record(
         });
     }
 
+    if let Some(size_key) = suffix.strip_suffix("_unavailable.json") {
+        return Some(ThumbnailObservationRecord {
+            observed_at: observed_at.to_owned(),
+            size_key: size_key.to_owned(),
+            path,
+            is_materialized_asset: false,
+        });
+    }
+
     let dot_index = suffix.rfind('.')?;
     let (size_key, _) = suffix.split_at(dot_index);
     Some(ThumbnailObservationRecord {
@@ -342,6 +351,31 @@ mod tests {
                 .observed_at,
             "2026-04-02T17-04-05+00-00"
         );
+        assert_eq!(
+            index
+                .latest_observation_for("120x90")
+                .expect("observation should exist")
+                .observed_at,
+            "2026-04-02T18-04-05+00-00"
+        );
+    }
+
+    #[test]
+    fn loads_unavailable_thumbnail_events_as_observations() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let video_dir = temp_dir.path().join("videos").join("abc123");
+        std::fs::create_dir_all(&video_dir).expect("video directory should be created");
+
+        std::fs::write(
+            video_dir.join("event_2026-04-02T18-04-05+00-00_thumbnail_120x90_unavailable.json"),
+            "{}",
+        )
+        .expect("unavailable event should be written");
+
+        let index = load_video_thumbnail_index(temp_dir.path(), "abc123")
+            .expect("thumbnail index should load");
+
+        assert!(index.latest_asset_for("120x90").is_none());
         assert_eq!(
             index
                 .latest_observation_for("120x90")

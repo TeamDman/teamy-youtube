@@ -77,6 +77,21 @@ pub fn video_thumbnail_unchanged_event_path_for(
     ))
 }
 
+/// Build the canonical path for an unavailable-thumbnail observation event.
+#[must_use]
+pub fn video_thumbnail_unavailable_event_path_for(
+    sync_dir: &Path,
+    video_id: &str,
+    observed_at: &str,
+    thumbnail_size: &str,
+) -> PathBuf {
+    video_dir_path_for(sync_dir, video_id).join(format!(
+        "event_{}_thumbnail_{}_unavailable.json",
+        sanitize_timestamp(observed_at),
+        sanitize_component(thumbnail_size)
+    ))
+}
+
 /// Build the canonical directory path for a video in the sync database.
 #[must_use]
 pub fn video_dir_path_for(sync_dir: &Path, video_id: &str) -> PathBuf {
@@ -162,6 +177,7 @@ fn thumbnail_extension_from_url(source_url: &str) -> String {
 mod tests {
     use super::normalize_title_for_path;
     use super::video_thumbnail_path_for;
+    use super::video_thumbnail_unavailable_event_path_for;
     use super::video_thumbnail_unchanged_event_path_for;
     use std::path::Path;
 
@@ -193,6 +209,21 @@ mod tests {
         assert_eq!(
             path.display().to_string().replace('\\', "/"),
             "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_thumbnail_120x90_unchanged.json"
+        );
+    }
+
+    #[test]
+    fn builds_unavailable_thumbnail_event_path() {
+        let path = video_thumbnail_unavailable_event_path_for(
+            Path::new("G:/sync-root"),
+            "abc123",
+            "2026-04-02T15:04:05+00:00",
+            "120x90",
+        );
+
+        assert_eq!(
+            path.display().to_string().replace('\\', "/"),
+            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_thumbnail_120x90_unavailable.json"
         );
     }
 

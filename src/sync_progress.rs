@@ -36,6 +36,16 @@ impl SyncProgress {
         }
     }
 
+    #[must_use]
+    pub fn items_total(&self) -> usize {
+        self.items_total
+    }
+
+    #[must_use]
+    pub fn items_processed(&self) -> usize {
+        self.items_processed
+    }
+
     pub fn emit_log(&self, operation: &'static str, elapsed: Duration) {
         let items_remaining = self.items_total.saturating_sub(self.items_processed);
         let bytes_per_second = bytes_per_second(self.bytes_processed, elapsed);
