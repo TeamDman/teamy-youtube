@@ -20,6 +20,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Instant;
 use tokio::process::Command;
+use tracing::debug;
 
 pub use channel_sync_target_file::*;
 pub use video_download_event_file::*;
@@ -117,21 +118,49 @@ pub async fn plan_channel_sync(
     let mut work_items_by_video_id = BTreeMap::<String, VideoDownloadWorkItem>::new();
 
     for target in &targets {
+        let discover_started_at = Instant::now();
+        debug!(source_url = %target.source_url, "Discovering tracked channel");
         let discovered_channel = discover_channel(&target.source_url, None).await?;
+        debug!(
+            source_url = %target.source_url,
+            discovered_video_count = discovered_channel.entries.len(),
+            elapsed_ms = discover_started_at.elapsed().as_millis(),
+            "Discovered tracked channel"
+        );
         summary.discovered_video_count += discovered_channel.entries.len();
         if matches!(mode, ChannelSyncPlanMode::EnqueueMissingRequests) {
             let discovery_event = build_channel_discovery_event_file(&discovered_channel);
             let _ = write_channel_discovery_event(sync_dir, &discovery_event).await?;
         }
 
+        let discovered_video_ids = discovered_channel
+            .entries
+            .iter()
+            .map(|entry| entry.video_id.clone())
+            .collect::<Vec<_>>();
+        let resolve_existing_started_at = Instant::now();
         let existing_media_by_video_id = find_existing_media_files_for_videos(
-            &discovered_channel
-                .entries
-                .iter()
-                .map(|entry| entry.video_id.clone())
-                .collect::<Vec<_>>(),
+            &discovered_video_ids,
             Path::new(&target.preferred_download_dir),
         )?;
+        let already_on_disk_for_target = discovered_video_ids
+            .iter()
+            .filter(|video_id| {
+                existing_media_by_video_id
+                    .get(video_id.as_str())
+                    .is_some_and(|paths| !paths.is_empty())
+            })
+            .count();
+        debug!(
+            source_url = %target.source_url,
+            discovered_video_count = discovered_video_ids.len(),
+            already_on_disk_count = already_on_disk_for_target,
+            unresolved_video_count = discovered_video_ids
+                .len()
+                .saturating_sub(already_on_disk_for_target),
+            elapsed_ms = resolve_existing_started_at.elapsed().as_millis(),
+            "Resolved existing media for tracked channel"
+        );
 
         for entry in &discovered_channel.entries {
             if existing_media_by_video_id
@@ -421,10 +450,18 @@ fn find_existing_media_files_for_videos(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
+    let local_scan_started_at = Instant::now();
     let mut existing_paths_by_video_id = find_local_media_files_in_directory_for_video_ids(
         preferred_download_dir,
         &unique_video_ids,
     )?;
+    debug!(
+        directory = %preferred_download_dir.display(),
+        video_id_count = unique_video_ids.len(),
+        locally_resolved_video_count = existing_paths_by_video_id.len(),
+        elapsed_ms = local_scan_started_at.elapsed().as_millis(),
+        "Scanned preferred download directory for existing media"
+    );
 
     let unresolved_video_ids = unique_video_ids
         .iter()
@@ -432,12 +469,32 @@ fn find_existing_media_files_for_videos(
         .cloned()
         .collect::<Vec<_>>();
 
-    for chunk in unresolved_video_ids.chunks(EXISTING_MEDIA_QUERY_BATCH_SIZE) {
+    if !unresolved_video_ids.is_empty() {
+        debug!(
+            directory = %preferred_download_dir.display(),
+            unresolved_video_count = unresolved_video_ids.len(),
+            batch_size = EXISTING_MEDIA_QUERY_BATCH_SIZE,
+            "Falling back to teamy-mft for unresolved existing media lookup"
+        );
+    }
+
+    for (chunk_index, chunk) in unresolved_video_ids
+        .chunks(EXISTING_MEDIA_QUERY_BATCH_SIZE)
+        .enumerate()
+    {
+        let query_started_at = Instant::now();
         let matching_paths = teamy_mft::cli::command::query::QueryArgs {
             query: build_existing_media_queries(chunk),
             ..Default::default()
         }
         .invoke()?;
+        debug!(
+            chunk_index,
+            chunk_size = chunk.len(),
+            matched_path_count = matching_paths.len(),
+            elapsed_ms = query_started_at.elapsed().as_millis(),
+            "Queried teamy-mft for existing media"
+        );
 
         for path in matching_paths {
             for video_id in chunk {
@@ -460,15 +517,7 @@ fn find_existing_media_files_for_videos(
 }
 
 fn build_existing_media_queries(video_ids: &[String]) -> Vec<String> {
-    let mut queries = Vec::with_capacity(video_ids.len() * KNOWN_MEDIA_FILE_EXTENSIONS.len() * 2);
-    for video_id in video_ids {
-        let bracketed_id = format!("[{video_id}]");
-        for extension in KNOWN_MEDIA_FILE_EXTENSIONS {
-            queries.push(format!("{bracketed_id}.{extension}$"));
-            queries.push(format!("{video_id}.{extension}$"));
-        }
-    }
-    queries
+    video_ids.to_vec()
 }
 
 fn find_local_media_files_in_directory_for_video_ids(
@@ -510,11 +559,15 @@ fn find_local_media_files_in_directory_for_video_ids(
 }
 
 fn path_matches_video_id(path: &Path, video_id: &str) -> bool {
-    let Some(file_name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
+    let Some(file_stem) = path.file_stem().and_then(std::ffi::OsStr::to_str) else {
         return false;
     };
-    has_known_media_file_extension(path)
-        && (file_name.contains(&format!("[{video_id}]")) || file_name.contains(video_id))
+
+    has_known_media_file_extension(path) && file_stem_matches_video_id(file_stem, video_id)
+}
+
+fn file_stem_matches_video_id(file_stem: &str, video_id: &str) -> bool {
+    file_stem == video_id || file_stem.ends_with(&format!("[{video_id}]"))
 }
 
 fn has_known_media_file_extension(path: &Path) -> bool {
@@ -600,15 +653,38 @@ fn sanitize_component(value: &str) -> String {
 mod tests {
     use super::build_existing_media_queries;
     use super::find_local_media_files_in_directory_for_video_ids;
+    use super::path_matches_video_id;
+    use std::path::Path;
 
     #[test]
-    fn existing_media_queries_match_canonical_download_suffixes() {
+    fn existing_media_queries_use_raw_video_ids_for_fast_mft_lookup() {
         let queries = build_existing_media_queries(&["abc123def45".to_owned()]);
 
-        assert!(queries.contains(&"[abc123def45].mkv$".to_owned()));
-        assert!(queries.contains(&"abc123def45.mkv$".to_owned()));
-        assert!(!queries.contains(&"[abc123def45] .mkv$".to_owned()));
-        assert!(!queries.contains(&"abc123def45 .mkv$".to_owned()));
+        assert_eq!(queries, vec!["abc123def45".to_owned()]);
+    }
+
+    #[test]
+    fn path_matching_requires_canonical_video_id_suffix() {
+        assert!(path_matches_video_id(
+            Path::new("Example [abc123def45].mkv"),
+            "abc123def45"
+        ));
+        assert!(path_matches_video_id(
+            Path::new("abc123def45.webm"),
+            "abc123def45"
+        ));
+        assert!(!path_matches_video_id(
+            Path::new("Example abc123def45 trailer.mkv"),
+            "abc123def45"
+        ));
+        assert!(!path_matches_video_id(
+            Path::new("abc123def45-extra.mkv"),
+            "abc123def45"
+        ));
+        assert!(!path_matches_video_id(
+            Path::new("abc123def45.txt"),
+            "abc123def45"
+        ));
     }
 
     #[test]
