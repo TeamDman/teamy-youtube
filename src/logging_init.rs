@@ -67,7 +67,7 @@ pub fn init_logging(global_args: &GlobalArgs) -> eyre::Result<()> {
         });
 
         let json_layer = tracing_subscriber::fmt::layer()
-            .event_format(tracing_subscriber::fmt::format().json())
+            .json()
             .with_file(true)
             .with_target(false)
             .with_line_number(true)
@@ -99,4 +99,117 @@ pub fn init_logging(global_args: &GlobalArgs) -> eyre::Result<()> {
         "Tracing initialized"
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use tracing::Dispatch;
+    use tracing::dispatcher;
+    use tracing_subscriber::Registry;
+    use tracing_subscriber::fmt;
+    use tracing_subscriber::fmt::writer::MakeWriter;
+    use tracing_subscriber::prelude::*;
+
+    #[derive(Clone, Default)]
+    struct SharedBuffer {
+        bytes: Arc<Mutex<Vec<u8>>>,
+    }
+
+    struct SharedBufferWriter {
+        bytes: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl SharedBuffer {
+        fn to_utf8_string(&self) -> String {
+            String::from_utf8(self.bytes.lock().expect("buffer lock poisoned").clone())
+                .expect("buffer should contain valid utf-8")
+        }
+    }
+
+    impl io::Write for SharedBufferWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.bytes
+                .lock()
+                .expect("buffer lock poisoned")
+                .extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl<'a> MakeWriter<'a> for SharedBuffer {
+        type Writer = SharedBufferWriter;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            SharedBufferWriter {
+                bytes: Arc::clone(&self.bytes),
+            }
+        }
+    }
+
+    fn emit_event_inside_span(dispatch: &Dispatch) {
+        dispatcher::with_default(dispatch, || {
+            let span = tracing::info_span!("resolve_sync_dir");
+            let _entered = span.enter();
+            tracing::info!(message = "hello");
+        });
+    }
+
+    #[test]
+    #[cfg_attr(debug_assertions, should_panic(expected = "had malformed fields"))]
+    fn json_event_formatter_without_json_fields_breaks_span_serialization() {
+        let writer = SharedBuffer::default();
+        let subscriber = Registry::default().with(
+            fmt::layer()
+                .event_format(fmt::format().json())
+                .with_writer(writer.clone())
+                .with_target(false)
+                .with_file(true)
+                .with_line_number(true),
+        );
+        let dispatch = Dispatch::new(subscriber);
+
+        emit_event_inside_span(&dispatch);
+
+        #[cfg(not(debug_assertions))]
+        {
+            let output = writer.to_utf8_string();
+            assert!(output.contains("field_error"));
+        }
+    }
+
+    #[test]
+    fn json_layer_with_json_fields_serializes_span_scope() {
+        let pretty_output = SharedBuffer::default();
+        let json_output = SharedBuffer::default();
+        let subscriber = Registry::default()
+            .with(
+                fmt::layer()
+                    .pretty()
+                    .without_time()
+                    .with_writer(pretty_output),
+            )
+            .with(
+                fmt::layer()
+                    .fmt_fields(tracing_subscriber::fmt::format::JsonFields::new())
+                    .event_format(fmt::format().json())
+                    .with_writer(json_output.clone())
+                    .with_target(false)
+                    .with_file(true)
+                    .with_line_number(true),
+            );
+        let dispatch = Dispatch::new(subscriber);
+
+        emit_event_inside_span(&dispatch);
+
+        let output = json_output.to_utf8_string();
+        assert!(output.contains("\"resolve_sync_dir\""));
+        assert!(output.contains("\"message\":\"hello\""));
+    }
 }
