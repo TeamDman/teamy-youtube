@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 use tokio::process::Command;
 use tracing::debug;
+use tracing::info;
 
 pub use channel_sync_target_file::*;
 pub use video_download_event_file::*;
@@ -203,8 +204,14 @@ pub async fn execute_channel_sync_plan(
     let started_at = Instant::now();
     let mut progress = crate::sync_progress::SyncProgress::new(plan.work_items.len());
 
-    for work_item in &plan.work_items {
-        let outcome = execute_video_download_work_item(sync_dir, work_item).await?;
+    for (download_index, work_item) in plan.work_items.iter().enumerate() {
+        let outcome = execute_video_download_work_item(
+            sync_dir,
+            work_item,
+            download_index + 1,
+            plan.work_items.len(),
+        )
+        .await?;
         summary.downloaded_count += outcome.downloaded_count;
         summary.failed_count += outcome.failed_count;
         progress.record_item(outcome.bytes_processed, outcome.last_written_file);
@@ -258,6 +265,8 @@ async fn assess_discovered_video(
 async fn execute_video_download_work_item(
     sync_dir: &Path,
     work_item: &VideoDownloadWorkItem,
+    download_index: usize,
+    download_total: usize,
 ) -> eyre::Result<VideoDownloadExecutionOutcome> {
     let preferred_download_dir = PathBuf::from(&work_item.request.preferred_download_dir);
     std::fs::create_dir_all(&preferred_download_dir)?;
@@ -277,6 +286,17 @@ async fn execute_video_download_work_item(
     if let Some(parent) = print_path.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
+
+    info!(
+        download_index,
+        download_total,
+        channel_name = %work_item.request.channel_name,
+        video_id = %work_item.request.video_id,
+        video_title = work_item.request.video_title.as_deref().unwrap_or("unknown"),
+        video_url = %work_item.request.video_url,
+        preferred_download_dir = %preferred_download_dir.display(),
+        "starting channel video download"
+    );
 
     let output = Command::new("yt-dlp")
         .current_dir(&preferred_download_dir)
