@@ -1,6 +1,7 @@
 #![deny(clippy::disallowed_methods)]
 #![deny(clippy::disallowed_macros)]
 
+pub mod channel_sync;
 pub mod cli;
 pub mod fs_db;
 pub mod logging_init;

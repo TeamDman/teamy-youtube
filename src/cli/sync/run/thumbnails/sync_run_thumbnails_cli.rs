@@ -64,6 +64,19 @@ struct ThumbnailSyncPlan {
     work_items: Vec<ThumbnailWorkItem>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ThumbnailPlanSummary {
+    pub candidate_video_count: usize,
+    pub inspected_video_count: usize,
+    pub skipped_due_to_limit_count: usize,
+    pub source_video_count: usize,
+    pub discovered_count: usize,
+    pub existing_count: usize,
+    pub unavailable_count: usize,
+    pub refresh_eligible_count: usize,
+    pub work_item_count: usize,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 struct ThumbnailVideoPlan {
     counts: ThumbnailSyncCounts,
@@ -216,6 +229,23 @@ async fn build_thumbnail_sync_plan_with_refresh(
         inspected_video_count,
         counts,
         work_items,
+    })
+}
+
+pub(crate) async fn summarize_thumbnail_plan(
+    sync_dir: &Path,
+) -> eyre::Result<ThumbnailPlanSummary> {
+    let plan = build_thumbnail_sync_plan_with_refresh(sync_dir, None, None).await?;
+    Ok(ThumbnailPlanSummary {
+        candidate_video_count: plan.candidate_video_count,
+        inspected_video_count: plan.inspected_video_count,
+        skipped_due_to_limit_count: plan.skipped_due_to_limit_count,
+        source_video_count: plan.counts.source_videos,
+        discovered_count: plan.counts.discovered,
+        existing_count: plan.counts.existing,
+        unavailable_count: plan.counts.unavailable,
+        refresh_eligible_count: plan.counts.refresh_eligible,
+        work_item_count: plan.work_items.len(),
     })
 }
 

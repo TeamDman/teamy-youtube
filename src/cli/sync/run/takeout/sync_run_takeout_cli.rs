@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::Duration;
 use teamy_mft::cli::command::query::QueryArgs;
 use tracing::info;
 
@@ -28,8 +29,16 @@ impl SyncRunTakeoutArgs {
     /// This function will return an error if the sync dir is unset, discovery fails,
     /// the takeout inputs cannot be read, or the sync database cannot be written.
     pub async fn invoke(self) -> eyre::Result<()> {
+        self.invoke_with_mft_max_age(None).await
+    }
+
+    /// # Errors
+    ///
+    /// This function will return an error if the sync dir is unset, discovery fails,
+    /// the takeout inputs cannot be read, the teamy-mft cache is too old, or the sync database cannot be written.
+    pub async fn invoke_with_mft_max_age(self, mft_max_age: Option<Duration>) -> eyre::Result<()> {
         let sync_dir = crate::paths::try_get_sync_dir()?;
-        let discovered_inputs = discover_inputs(self.input_dir)?;
+        let discovered_inputs = discover_inputs(self.input_dir, mft_max_age)?;
 
         info!(
             sync_dir = %sync_dir.display(),
@@ -82,12 +91,16 @@ struct DiscoveredInputs {
     source_label: String,
 }
 
-fn discover_inputs(input_dir: Option<String>) -> eyre::Result<DiscoveredInputs> {
+fn discover_inputs(
+    input_dir: Option<String>,
+    mft_max_age: Option<Duration>,
+) -> eyre::Result<DiscoveredInputs> {
     let (watch_history_json, playlist_csvs, source_label) = if let Some(input_dir) = input_dir {
         let input_dir = normalize_input_dir(&input_dir)?;
         let discovered = discover_takeout_inputs_from_directory(&input_dir)?;
         (discovered.0, discovered.1, input_dir.display().to_string())
     } else {
+        crate::cli::sync::assert_teamy_mft_query_cache_fresh(mft_max_age)?;
         let discovered = discover_takeout_inputs_from_index()?;
         (discovered.0, discovered.1, "teamy-mft-index".to_owned())
     };

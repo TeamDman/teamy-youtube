@@ -37,6 +37,10 @@ The main problem with the current setup is that the useful information is spread
 
 ```text
 TEAMY_YOUTUBE_SYNC_DIR/
+├── channels/
+│   └── <channel-id>/
+│       ├── target.json
+│       └── event_<timestamp>_discover_videos.json
 ├── videos/
 │   └── <video-id>/
 │       ├── event_<timestamp>_watched.json
@@ -44,13 +48,16 @@ TEAMY_YOUTUBE_SYNC_DIR/
 │       ├── event_<timestamp>_fetch_video_data.json
 │       ├── event_<timestamp>_fetch_video_data_missing.json
 │       ├── event_<timestamp>_fetch_video_data_unavailable.json
+│       ├── event_<timestamp>_download_video_requested.json
+│       ├── event_<timestamp>_download_video_completed.json
+│       ├── event_<timestamp>_download_video_failed.json
 │       ├── event_<timestamp>_observe_title_<title>.txt
 │       ├── event_<timestamp>_thumbnail_120x90.jpg
 │       ├── event_<timestamp>_thumbnail_120x90_unchanged.json
 │       └── ...future generic events and assets...
 ```
 
-The exact event shapes will keep evolving, but the stable direction is source-agnostic event files and assets under `videos/<video-id>/`. Thumbnail assets are keyed by their dimensions when known, and the event timestamp reflects when the thumbnail was observed or re-checked.
+The exact event shapes will keep evolving, but the stable direction is source-agnostic event files and assets under `videos/<video-id>/`, plus durable channel targets under `channels/<channel-id>/`. Thumbnail assets are keyed by their dimensions when known, the event timestamp reflects when the thumbnail was observed or re-checked, and download-request plus terminal download-result events let future commands enqueue work by video ID without coupling discovery directly to download execution.
 
 ## Intended Command Groups
 
@@ -58,7 +65,7 @@ The exact event shapes will keep evolving, but the stable direction is source-ag
 - `cache`: show, open, or clean the local cache directory
 - `api`: persist and validate API credentials used by external metadata fetchers
 - `fetch`: fetch raw external metadata events such as YouTube Data API video responses
-- `sync`: show, open, or set the sync directory, then ingest datasources into the filesystem database
+- `sync`: show, open, or set the sync directory, inspect remaining work, ingest datasources into the filesystem database, and manage tracked channel downloads
 
 ## Example Usage
 
@@ -71,6 +78,7 @@ cargo run -- fetch video XfcLWVX-hCA
 cargo run -- sync dir set ~/Downloads/teamy-youtube-sync
 cargo run -- sync dir show
 cargo run -- sync dir open
+cargo run -- sync --bail-if-mft-older-than 1day status
 cargo run -- sync
 cargo run -- sync takeout --dry-run
 cargo run -- sync takeout --dry-run --input-dir C:\Users\TeamD\OneDrive\Documents\Backups\takeout\takeout-20260326T232255Z-3-001
@@ -78,6 +86,9 @@ cargo run -- sync videos --fetch-limit 25
 cargo run -- sync thumbnails
 cargo run -- sync thumbnails --limit 25
 cargo run -- sync thumbnails --refresh-videos-newer-than 2d --refresh-thumbnails-older-than 6h
+cargo run -- sync channel add https://www.youtube.com/@jblow888/videos I:\YouTube\jblow888
+cargo run -- sync channel --dry-run --bail-if-mft-older-than 1day
+cargo run -- sync channel --bail-if-mft-older-than 1day
 ```
 
 ## Immediate Goal
@@ -93,6 +104,7 @@ The first implementation target is a filesystem-backed pipeline that can:
 ## Current Behavior
 
 - `sync takeout`, `sync videos`, `sync thumbnails`, and bare `sync` require the sync dir to be configured first.
+- `sync status` requires the sync dir to be configured and summarizes missing fetches, thumbnail work, tracked channels, queued downloads, and teamy-mft cache freshness.
 - `api key set <value>` persists the `YouTube` API key under the application home directory.
 - `api key validate` checks that the configured `YouTube` API key can successfully call the `YouTube` Data API.
 - `fetch video <id>` requires the sync dir to be configured and a usable `YouTube` API key to be available either from `YOUTUBE_API_KEY` or the persisted home-directory config.
@@ -103,6 +115,12 @@ The first implementation target is a filesystem-backed pipeline that can:
 - By default, `sync thumbnails` does not re-download a thumbnail size when a materialized thumbnail asset for that size already exists.
 - `sync thumbnails --refresh-videos-newer-than <age> --refresh-thumbnails-older-than <age>` enables refresh mode for recently published videos whose latest thumbnail observation is old enough to justify another check.
 - When a refresh finds the thumbnail bytes are unchanged, `sync thumbnails` writes `event_<timestamp>_thumbnail_<size>_unchanged.json` instead of duplicating the asset bytes.
+- `sync channel add <url-or-handle> <dir>` persists a tracked channel target under `channels/<channel-id>/target.json` and remembers the preferred download directory for future runs.
+- `sync channel --dry-run` previews the current plan without writing discovery or request events and without downloading anything.
+- `sync channel` uses `yt-dlp` for channel discovery, writes per-run `event_<timestamp>_discover_videos.json` files under each tracked channel, enqueues missing videos by writing `event_<timestamp>_download_video_requested.json`, and writes terminal `download_video_completed` or `download_video_failed` events under each video.
+- `sync channel` uses teamy-mft indexed path queries to skip videos whose media files already exist anywhere on indexed disks, even if they live outside the preferred download directory.
+- `sync channel` also scans the preferred download directory during planning, so recent local downloads are recognized even when teamy-mft has not been refreshed yet.
+- `sync --bail-if-mft-older-than <age>` overrides the default 2-hour freshness gate for teamy-mft-backed stages.
 - Bare `sync` runs `takeout`, `videos`, then `thumbnails` in that order with their default arguments.
 - If `--input-dir` is omitted, takeout discovery uses the `teamy-mft` crate to query indexed files and pick the most recent `watch-history.json` plus the most recent version of each playlist CSV.
 - `--dry-run` prints a count summary, skips writing event files, and previews the canonical output paths for a sample video that appears in both watch history and a playlist when such an overlap exists.

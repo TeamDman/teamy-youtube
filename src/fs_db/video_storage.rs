@@ -21,6 +21,53 @@ pub struct VideoThumbnailIndex {
     latest_observation_by_size: BTreeMap<String, ThumbnailObservationRecord>,
 }
 
+/// Latest video-download request, completion, and failure events for a video.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct VideoDownloadEventIndex {
+    pub latest_request_event_path: Option<PathBuf>,
+    pub latest_request_observed_at: Option<String>,
+    pub latest_completed_event_path: Option<PathBuf>,
+    pub latest_completed_observed_at: Option<String>,
+    pub latest_failed_event_path: Option<PathBuf>,
+    pub latest_failed_observed_at: Option<String>,
+}
+
+impl VideoDownloadEventIndex {
+    #[must_use]
+    pub fn has_pending_request(&self) -> bool {
+        let Some(requested_at) = self.latest_request_observed_at.as_deref() else {
+            return false;
+        };
+
+        self.latest_completed_observed_at
+            .as_deref()
+            .unwrap_or_default()
+            < requested_at
+            && self
+                .latest_failed_observed_at
+                .as_deref()
+                .unwrap_or_default()
+                < requested_at
+    }
+
+    #[must_use]
+    pub fn has_blocking_failure(&self) -> bool {
+        let Some(failed_at) = self.latest_failed_observed_at.as_deref() else {
+            return false;
+        };
+
+        self.latest_request_observed_at
+            .as_deref()
+            .unwrap_or_default()
+            < failed_at
+            && self
+                .latest_completed_observed_at
+                .as_deref()
+                .unwrap_or_default()
+                < failed_at
+    }
+}
+
 impl VideoThumbnailIndex {
     #[must_use]
     pub fn latest_asset_for(&self, size_key: &str) -> Option<&ThumbnailObservationRecord> {
@@ -211,6 +258,61 @@ pub fn load_video_thumbnail_index(
     Ok(index)
 }
 
+/// Load the latest video-download request, completion, and failure events for a video.
+///
+/// # Errors
+///
+/// Returns an error if the video directory cannot be read.
+pub fn load_video_download_event_index(
+    sync_dir: &Path,
+    video_id: &str,
+) -> eyre::Result<VideoDownloadEventIndex> {
+    let video_dir = crate::fs_db::video_dir_path_for(sync_dir, video_id);
+    if !video_dir.exists() {
+        return Ok(VideoDownloadEventIndex::default());
+    }
+
+    let mut index = VideoDownloadEventIndex::default();
+    for entry in std::fs::read_dir(video_dir)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+
+        let Some(file_name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let Some((observed_at, event_kind)) = parse_video_download_event_file_name(&file_name)
+        else {
+            continue;
+        };
+
+        let path = entry.path();
+        match event_kind {
+            VideoDownloadEventKind::Requested => update_latest_download_event_record(
+                &mut index.latest_request_observed_at,
+                &mut index.latest_request_event_path,
+                observed_at,
+                path,
+            ),
+            VideoDownloadEventKind::Completed => update_latest_download_event_record(
+                &mut index.latest_completed_observed_at,
+                &mut index.latest_completed_event_path,
+                observed_at,
+                path,
+            ),
+            VideoDownloadEventKind::Failed => update_latest_download_event_record(
+                &mut index.latest_failed_observed_at,
+                &mut index.latest_failed_event_path,
+                observed_at,
+                path,
+            ),
+        }
+    }
+
+    Ok(index)
+}
+
 fn normalize_sanitized_offset(offset_part: &str) -> eyre::Result<String> {
     let (sign, rest) = offset_part.split_at(1);
     if sign != "+" && sign != "-" {
@@ -255,6 +357,48 @@ fn parse_thumbnail_observation_record(
     })
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum VideoDownloadEventKind {
+    Requested,
+    Completed,
+    Failed,
+}
+
+fn parse_video_download_event_file_name(
+    file_name: &str,
+) -> Option<(String, VideoDownloadEventKind)> {
+    let rest = file_name.strip_prefix("event_")?;
+
+    if let Some(observed_at) = rest.strip_suffix("_download_video_requested.json") {
+        return Some((observed_at.to_owned(), VideoDownloadEventKind::Requested));
+    }
+    if let Some(observed_at) = rest.strip_suffix("_download_video_completed.json") {
+        return Some((observed_at.to_owned(), VideoDownloadEventKind::Completed));
+    }
+    if let Some(observed_at) = rest.strip_suffix("_download_video_failed.json") {
+        return Some((observed_at.to_owned(), VideoDownloadEventKind::Failed));
+    }
+
+    None
+}
+
+fn update_latest_download_event_record(
+    latest_observed_at: &mut Option<String>,
+    latest_event_path: &mut Option<PathBuf>,
+    observed_at: String,
+    path: PathBuf,
+) {
+    if latest_observed_at
+        .as_deref()
+        .is_some_and(|existing| existing >= observed_at.as_str())
+    {
+        return;
+    }
+
+    *latest_observed_at = Some(observed_at);
+    *latest_event_path = Some(path);
+}
+
 fn update_latest_record(
     map: &mut BTreeMap<String, ThumbnailObservationRecord>,
     record: ThumbnailObservationRecord,
@@ -270,6 +414,7 @@ fn update_latest_record(
 #[cfg(test)]
 mod tests {
     use super::has_terminal_video_fetch_event;
+    use super::load_video_download_event_index;
     use super::load_video_thumbnail_index;
     use super::parse_sanitized_event_timestamp;
     use super::video_fetch_event_timestamp_from_path;
@@ -383,5 +528,42 @@ mod tests {
                 .observed_at,
             "2026-04-02T18-04-05+00-00"
         );
+    }
+
+    #[test]
+    fn loads_latest_video_download_events() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let video_dir = temp_dir.path().join("videos").join("abc123");
+        std::fs::create_dir_all(&video_dir).expect("video directory should be created");
+
+        std::fs::write(
+            video_dir.join("event_2026-04-02T15-04-05+00-00_download_video_requested.json"),
+            "{}",
+        )
+        .expect("request event should be written");
+        std::fs::write(
+            video_dir.join("event_2026-04-02T16-04-05+00-00_download_video_failed.json"),
+            "{}",
+        )
+        .expect("failed event should be written");
+        std::fs::write(
+            video_dir.join("event_2026-04-02T17-04-05+00-00_download_video_requested.json"),
+            "{}",
+        )
+        .expect("newer request event should be written");
+
+        let index = load_video_download_event_index(temp_dir.path(), "abc123")
+            .expect("download event index should load");
+
+        assert_eq!(
+            index.latest_request_observed_at.as_deref(),
+            Some("2026-04-02T17-04-05+00-00")
+        );
+        assert_eq!(
+            index.latest_failed_observed_at.as_deref(),
+            Some("2026-04-02T16-04-05+00-00")
+        );
+        assert!(index.has_pending_request());
+        assert!(!index.has_blocking_failure());
     }
 }

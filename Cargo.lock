@@ -1123,9 +1123,9 @@ dependencies = [
 
 [[package]]
 name = "figue-attrs"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b09be1cd2a5c7295aa5dae9dd5585db38b3ab59c751336ebd4d692b867415703"
+checksum = "a95509cd6139af9c281d9e4f163db7fce0da7101102ac555e677937248437e58"
 dependencies = [
  "facet",
 ]
@@ -3099,9 +3099,9 @@ dependencies = [
 
 [[package]]
 name = "teamy-figue"
-version = "2.0.1"
+version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e24674e32ea30c8663657a7fb66f98b3c3c5bfaaaf585dfc14155edcd0386c2"
+checksum = "6d7aaea6f09bca9df8458e40957d6e2e26b0423c15a5e8e9b651dafad634d8a7"
 dependencies = [
  "arbitrary",
  "ariadne",
@@ -3128,9 +3128,9 @@ dependencies = [
 
 [[package]]
 name = "teamy-mft"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16a71c9c1e4867ce973a56dc3f6a01cbe5dbcb427d9cb6fba2e9311aafe0d8d7"
+checksum = "2405906eb5e5c98812ef438bb72e15141ae745eaea3cfcdd4208856c43385fb3"
 dependencies = [
  "arbitrary",
  "async-stream",
