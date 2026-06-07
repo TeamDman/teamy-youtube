@@ -39,7 +39,7 @@ pub async fn write_video_download_request_event(
 ) -> eyre::Result<PathBuf> {
     let path = crate::fs_db::video_download_request_event_path_for(
         sync_dir,
-        &event_file.video_id,
+        event_file.video_id,
         &event_file.requested_at,
     );
     write_json_file(&path, event_file).await
@@ -51,7 +51,7 @@ pub async fn write_video_download_completed_event(
 ) -> eyre::Result<PathBuf> {
     let path = crate::fs_db::video_download_completed_event_path_for(
         sync_dir,
-        &event_file.video_id,
+        event_file.video_id,
         &event_file.downloaded_at,
     );
     write_json_file(&path, event_file).await
@@ -63,7 +63,7 @@ pub async fn write_video_download_failed_event(
 ) -> eyre::Result<PathBuf> {
     let path = crate::fs_db::video_download_failed_event_path_for(
         sync_dir,
-        &event_file.video_id,
+        event_file.video_id,
         &event_file.failed_at,
     );
     write_json_file(&path, event_file).await

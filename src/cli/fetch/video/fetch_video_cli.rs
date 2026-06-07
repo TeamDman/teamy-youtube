@@ -6,9 +6,9 @@ use figue as args;
 /// Fetch metadata for a specific `YouTube` video.
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
 pub struct FetchVideoArgs {
-    /// The `YouTube` video ID to fetch.
-    #[facet(args::positional)]
-    pub video_id: String,
+    /// The `YouTube` video ID or URL to fetch.
+    #[facet(args::positional, proxy = crate::takeout::YouTubeVideoArgumentProxy)]
+    pub video: crate::takeout::YouTubeVideoArgument<'static>,
 }
 
 impl FetchVideoArgs {
@@ -20,7 +20,7 @@ impl FetchVideoArgs {
         let sync_dir = crate::paths::try_get_sync_dir()?;
         let api_key = crate::paths::try_get_youtube_api_key()?;
 
-        let video_id = crate::takeout::YouTubeVideoId::new(&self.video_id)?;
+        let video_id = self.video.video_id();
         let fetched_at = Local::now().to_rfc3339();
         match crate::youtube_api::fetch_video_data(&video_id, &api_key).await? {
             crate::youtube_api::YouTubeVideoFetchOutcome::Found(metadata) => {
@@ -44,7 +44,7 @@ impl FetchVideoArgs {
                 let event_path = crate::fs_db::write_missing_video_data(
                     &sync_dir,
                     &fetched_at,
-                    &video_id,
+                    video_id,
                     "fetch_video_data_missing",
                     &raw_response_body,
                 )
@@ -62,7 +62,7 @@ impl FetchVideoArgs {
                 let event_path = crate::fs_db::write_missing_video_data(
                     &sync_dir,
                     &fetched_at,
-                    &video_id,
+                    video_id,
                     "fetch_video_data_unavailable",
                     &raw_response_body,
                 )
@@ -74,5 +74,18 @@ impl FetchVideoArgs {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn cli_parses_video_url_into_typed_argument() {
+        let args: super::FetchVideoArgs = figue::from_slice(&[
+            "https://www.youtube.com/watch?v=bQVXiDC5w54",
+        ])
+        .unwrap();
+
+        assert_eq!(args.video.video_id().as_str(), "bQVXiDC5w54");
     }
 }

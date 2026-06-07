@@ -102,7 +102,7 @@ pub fn load_video_ids_from_sync_dir(sync_dir: &Path) -> eyre::Result<Vec<YouTube
         let Some(video_id) = file_name.to_str() else {
             continue;
         };
-        video_ids.push(YouTubeVideoId::new(video_id)?);
+        video_ids.push(YouTubeVideoId::try_new(video_id)?);
     }
 
     video_ids.sort();
@@ -114,7 +114,10 @@ pub fn load_video_ids_from_sync_dir(sync_dir: &Path) -> eyre::Result<Vec<YouTube
 /// # Errors
 ///
 /// Returns an error if the video directory cannot be read.
-pub fn has_terminal_video_fetch_event(sync_dir: &Path, video_id: &str) -> eyre::Result<bool> {
+pub fn has_terminal_video_fetch_event(
+    sync_dir: &Path,
+    video_id: YouTubeVideoId,
+) -> eyre::Result<bool> {
     let video_dir = crate::fs_db::video_dir_path_for(sync_dir, video_id);
     if !video_dir.exists() {
         return Ok(false);
@@ -148,7 +151,7 @@ pub fn has_terminal_video_fetch_event(sync_dir: &Path, video_id: &str) -> eyre::
 /// Returns an error if the video directory cannot be read.
 pub fn latest_successful_video_fetch_event_path(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
 ) -> eyre::Result<Option<PathBuf>> {
     let video_dir = crate::fs_db::video_dir_path_for(sync_dir, video_id);
     if !video_dir.exists() {
@@ -228,7 +231,7 @@ pub fn parse_sanitized_event_timestamp(value: &str) -> eyre::Result<DateTime<Fix
 /// Returns an error if the video directory cannot be read.
 pub fn load_video_thumbnail_index(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
 ) -> eyre::Result<VideoThumbnailIndex> {
     let video_dir = crate::fs_db::video_dir_path_for(sync_dir, video_id);
     if !video_dir.exists() {
@@ -265,7 +268,7 @@ pub fn load_video_thumbnail_index(
 /// Returns an error if the video directory cannot be read.
 pub fn load_video_download_event_index(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
 ) -> eyre::Result<VideoDownloadEventIndex> {
     let video_dir = crate::fs_db::video_dir_path_for(sync_dir, video_id);
     if !video_dir.exists() {
@@ -421,20 +424,24 @@ mod tests {
     use std::path::Path;
     use tempfile::TempDir;
 
+    fn video_id(value: &str) -> crate::takeout::YouTubeVideoId {
+        crate::takeout::YouTubeVideoId::try_new(value).expect("video id should parse")
+    }
+
     #[test]
     fn recognizes_negative_fetch_result_files() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let path = temp_dir
             .path()
             .join("videos")
-            .join("abc123")
+            .join("abc123def45")
             .join("event_2026-01-01T00-00-00+00-00_fetch_video_data_missing.json");
         std::fs::create_dir_all(path.parent().expect("parent should exist"))
             .expect("directories should be created");
         std::fs::write(&path, "{}").expect("file should be written");
 
         assert!(
-            has_terminal_video_fetch_event(temp_dir.path(), "abc123")
+            has_terminal_video_fetch_event(temp_dir.path(), video_id("abc123def45"))
                 .expect("check should succeed")
         );
     }
@@ -442,7 +449,7 @@ mod tests {
     #[test]
     fn extracts_timestamp_from_fetch_event_path() {
         let path = Path::new(
-            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_fetch_video_data.json",
+            "G:/sync-root/videos/abc123def45/event_2026-04-02T15-04-05+00-00_fetch_video_data.json",
         );
 
         assert_eq!(
@@ -462,7 +469,7 @@ mod tests {
     #[test]
     fn loads_latest_thumbnail_assets_and_observations_by_size() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
-        let video_dir = temp_dir.path().join("videos").join("abc123");
+        let video_dir = temp_dir.path().join("videos").join("abc123def45");
         std::fs::create_dir_all(&video_dir).expect("video directory should be created");
 
         std::fs::write(
@@ -486,7 +493,7 @@ mod tests {
         )
         .expect("newest unchanged event should be written");
 
-        let index = load_video_thumbnail_index(temp_dir.path(), "abc123")
+        let index = load_video_thumbnail_index(temp_dir.path(), video_id("abc123def45"))
             .expect("thumbnail index should load");
 
         assert_eq!(
@@ -508,7 +515,7 @@ mod tests {
     #[test]
     fn loads_unavailable_thumbnail_events_as_observations() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
-        let video_dir = temp_dir.path().join("videos").join("abc123");
+        let video_dir = temp_dir.path().join("videos").join("abc123def45");
         std::fs::create_dir_all(&video_dir).expect("video directory should be created");
 
         std::fs::write(
@@ -517,7 +524,7 @@ mod tests {
         )
         .expect("unavailable event should be written");
 
-        let index = load_video_thumbnail_index(temp_dir.path(), "abc123")
+        let index = load_video_thumbnail_index(temp_dir.path(), video_id("abc123def45"))
             .expect("thumbnail index should load");
 
         assert!(index.latest_asset_for("120x90").is_none());
@@ -533,7 +540,7 @@ mod tests {
     #[test]
     fn loads_latest_video_download_events() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
-        let video_dir = temp_dir.path().join("videos").join("abc123");
+        let video_dir = temp_dir.path().join("videos").join("abc123def45");
         std::fs::create_dir_all(&video_dir).expect("video directory should be created");
 
         std::fs::write(
@@ -552,7 +559,7 @@ mod tests {
         )
         .expect("newer request event should be written");
 
-        let index = load_video_download_event_index(temp_dir.path(), "abc123")
+        let index = load_video_download_event_index(temp_dir.path(), video_id("abc123def45"))
             .expect("download event index should load");
 
         assert_eq!(

@@ -2,7 +2,9 @@ mod playlist_video_entry;
 mod raw_watch_history_entry;
 mod raw_watch_history_subtitle;
 mod watch_history_entry;
+mod youtube_video_argument;
 mod youtube_video_id;
+mod youtube_video_url;
 
 use eyre::WrapErr as _;
 pub use playlist_video_entry::*;
@@ -10,7 +12,9 @@ use std::path::Path;
 use tracing::debug;
 use tracing::info;
 pub use watch_history_entry::*;
+pub use youtube_video_argument::*;
 pub use youtube_video_id::*;
+pub use youtube_video_url::*;
 
 const WATCH_LATER_HEADER: &str = "Video ID,Playlist Video Creation Timestamp";
 

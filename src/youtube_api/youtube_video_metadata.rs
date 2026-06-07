@@ -10,7 +10,7 @@ use facet_json::RawJson;
 pub struct YouTubeFetchedVideoMetadata {
     pub raw_response_body: RawJson<'static>,
     pub source_url: String,
-    pub video_id: String,
+    pub video_id: YouTubeVideoId,
     pub title: String,
     pub description: String,
     pub channel_id: String,
@@ -54,7 +54,7 @@ pub async fn fetch_video_data(
             .wrap_err("failed reading YouTube Data API error response body")?;
         if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::FORBIDDEN {
             return Ok(YouTubeVideoFetchOutcome::Unavailable {
-                video_id: video_id.as_str().to_owned(),
+                video_id: *video_id,
                 source_url,
                 status_code: status.as_u16(),
                 raw_response_body: RawJson::from(response_body),
@@ -71,7 +71,7 @@ pub async fn fetch_video_data(
     let parsed = parse_video_response(&response_body)?;
     let Some(item) = parsed.items.into_iter().next() else {
         return Ok(YouTubeVideoFetchOutcome::Missing {
-            video_id: video_id.as_str().to_owned(),
+            video_id: *video_id,
             source_url,
             raw_response_body: RawJson::from(response_body),
         });
@@ -81,7 +81,8 @@ pub async fn fetch_video_data(
         YouTubeFetchedVideoMetadata {
             raw_response_body: RawJson::from(response_body),
             source_url,
-            video_id: item.id,
+            video_id: YouTubeVideoId::try_new(&item.id)
+                .wrap_err_with(|| format!("invalid video id returned by YouTube API: {}", item.id))?,
             title: item.snippet.title,
             description: item.snippet.description,
             channel_id: item.snippet.channel_id,
@@ -133,7 +134,7 @@ pub async fn fetch_video_metadata(
 ///
 /// Returns an error if the API key is invalid or the request fails.
 pub async fn validate_api_key(api_key: &str) -> eyre::Result<()> {
-    let validation_video_id = YouTubeVideoId::new("dQw4w9WgXcQ")?;
+    let validation_video_id = YouTubeVideoId::try_new("dQw4w9WgXcQ")?;
     let _metadata = fetch_video_metadata(&validation_video_id, api_key).await?;
     Ok(())
 }

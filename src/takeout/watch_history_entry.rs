@@ -1,4 +1,5 @@
 use crate::takeout::YouTubeVideoId;
+use crate::takeout::YouTubeVideoUrl;
 use crate::takeout::raw_watch_history_entry::RawWatchHistoryEntry;
 use chrono::DateTime;
 use chrono::FixedOffset;
@@ -26,9 +27,10 @@ impl WatchHistoryEntry {
             return Ok(None);
         };
 
-        let Some(video_id) = YouTubeVideoId::from_watch_url(&title_url) else {
+        let Ok(video_url) = YouTubeVideoUrl::try_new(&title_url) else {
             return Ok(None);
         };
+        let video_id = video_url.video_id();
 
         let watched_at = DateTime::parse_from_rfc3339(&raw.time)
             .wrap_err_with(|| format!("invalid RFC3339 timestamp {:?}", raw.time))?;

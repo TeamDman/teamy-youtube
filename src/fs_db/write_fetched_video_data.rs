@@ -16,10 +16,10 @@ pub async fn write_fetched_video_data(
     let raw_response_bytes = metadata.raw_response_body.as_str().len();
     let title_bytes = metadata.title.len();
     let fetch_event_path =
-        crate::fs_db::video_fetch_event_path_for(sync_dir, &metadata.video_id, fetched_at);
+        crate::fs_db::video_fetch_event_path_for(sync_dir, metadata.video_id, fetched_at);
     let title_observation_path = crate::fs_db::video_title_observation_path_for(
         sync_dir,
-        &metadata.video_id,
+        metadata.video_id,
         fetched_at,
         &metadata.title,
     );

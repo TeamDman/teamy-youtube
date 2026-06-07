@@ -76,7 +76,7 @@ fn build_fetch_video_plan(
     let mut existing_fetch_count = 0_usize;
 
     for video_id in candidate_video_ids {
-        if crate::fs_db::has_terminal_video_fetch_event(sync_dir, video_id.as_str())? {
+        if crate::fs_db::has_terminal_video_fetch_event(sync_dir, video_id)? {
             existing_fetch_count += 1;
         } else {
             missing_video_ids.push(video_id);
@@ -179,7 +179,7 @@ async fn process_single_video_fetch(
             let path = crate::fs_db::write_missing_video_data(
                 sync_dir,
                 &fetched_at,
-                &video_id,
+                video_id,
                 "fetch_video_data_missing",
                 &raw_response_body,
             )
@@ -187,7 +187,7 @@ async fn process_single_video_fetch(
             let written_bytes = u64::try_from(raw_response_body.as_str().len())?;
             progress.record_item(written_bytes, Some(path.display().to_string()));
             debug!(
-                video_id,
+                video_id = %video_id,
                 event_path = %path.display(),
                 written_bytes,
                 written_bytes_human = %crate::sync_progress::format_bytes(written_bytes),
@@ -204,7 +204,7 @@ async fn process_single_video_fetch(
             let path = crate::fs_db::write_missing_video_data(
                 sync_dir,
                 &fetched_at,
-                &video_id,
+                video_id,
                 "fetch_video_data_unavailable",
                 &raw_response_body,
             )
@@ -212,7 +212,7 @@ async fn process_single_video_fetch(
             let written_bytes = u64::try_from(raw_response_body.as_str().len())?;
             progress.record_item(written_bytes, Some(path.display().to_string()));
             debug!(
-                video_id,
+                video_id = %video_id,
                 event_path = %path.display(),
                 written_bytes,
                 written_bytes_human = %crate::sync_progress::format_bytes(written_bytes),
@@ -262,6 +262,7 @@ mod tests {
     use super::build_fetch_video_plan;
     use super::format_optional_limit;
     use crate::fs_db::video_title_observation_path_for;
+    use crate::takeout::YouTubeVideoId;
     use std::path::Path;
     use tempfile::TempDir;
 
@@ -285,7 +286,7 @@ mod tests {
     fn unicode_title_observation_path_does_not_panic() {
         let path = video_title_observation_path_for(
             Path::new("G:/sync-root"),
-            "abc123",
+            YouTubeVideoId::try_new("abc123def45").expect("video id should parse"),
             "2026-04-03T12:34:56+00:00",
             "【東方ヴォーカルPV】LOVE EAST【暁Records公式】",
         );
@@ -296,11 +297,11 @@ mod tests {
     #[test]
     fn fetch_video_plan_skips_already_terminal_videos() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
-        let video_dir = temp_dir.path().join("videos").join("abc123");
+        let video_dir = temp_dir.path().join("videos").join("abc123def45");
         std::fs::create_dir_all(&video_dir).expect("video dir should be created");
         let event_path = crate::fs_db::video_fetch_event_path_for(
             temp_dir.path(),
-            "abc123",
+            YouTubeVideoId::try_new("abc123def45").expect("video id should parse"),
             "2026-04-04T00:00:00+00:00",
         );
         std::fs::write(&event_path, "{}\n").expect("event file should be written");
@@ -315,13 +316,13 @@ mod tests {
     #[test]
     fn fetch_video_plan_includes_only_missing_videos() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
-        std::fs::create_dir_all(temp_dir.path().join("videos").join("abc123"))
+        std::fs::create_dir_all(temp_dir.path().join("videos").join("abc123def45"))
             .expect("first video dir should be created");
-        std::fs::create_dir_all(temp_dir.path().join("videos").join("def456"))
+        std::fs::create_dir_all(temp_dir.path().join("videos").join("zzz98765432"))
             .expect("second video dir should be created");
         let event_path = crate::fs_db::video_fetch_event_path_for(
             temp_dir.path(),
-            "abc123",
+            YouTubeVideoId::try_new("abc123def45").expect("video id should parse"),
             "2026-04-04T00:00:00+00:00",
         );
         std::fs::write(&event_path, "{}\n").expect("event file should be written");
@@ -331,6 +332,6 @@ mod tests {
         assert_eq!(plan.existing_fetch_count, 1);
         assert_eq!(plan.total_missing_video_count, 1);
         assert_eq!(plan.missing_video_ids.len(), 1);
-        assert_eq!(plan.missing_video_ids[0].as_str(), "def456");
+        assert_eq!(plan.missing_video_ids[0].as_str(), "zzz98765432");
     }
 }

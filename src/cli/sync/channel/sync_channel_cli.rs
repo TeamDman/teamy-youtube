@@ -9,7 +9,7 @@ use std::time::Duration;
 #[facet(rename_all = "kebab-case")]
 pub struct SyncChannelArgs {
     /// Preview the channel sync plan without writing discovery or request events and without downloading anything.
-    #[facet(args::named)]
+    #[facet(args::named, default)]
     pub dry_run: bool,
 
     /// The channel subcommand to run.

@@ -1,4 +1,5 @@
 use crate::takeout::YouTubeVideoId;
+use crate::takeout::YouTubeVideoUrl;
 use eyre::WrapErr as _;
 use facet::Facet;
 use tokio::process::Command;
@@ -17,7 +18,7 @@ pub struct DiscoveredChannel {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiscoveredChannelVideo {
     pub video_id: YouTubeVideoId,
-    pub video_url: String,
+    pub video_url: YouTubeVideoUrl,
     pub video_title: Option<String>,
 }
 
@@ -64,16 +65,7 @@ pub async fn discover_channel(
 
     let mut entries = Vec::new();
     for entry in raw.entries {
-        let video_id = YouTubeVideoId::new(&entry.id)?;
-        let video_url = entry
-            .url
-            .unwrap_or_else(|| format!("https://www.youtube.com/watch?v={}", video_id.as_str()));
-        let video_title = entry.title.and_then(non_empty_owned);
-        entries.push(DiscoveredChannelVideo {
-            video_id,
-            video_url,
-            video_title,
-        });
+        entries.push(build_discovered_channel_video(entry)?);
     }
 
     Ok(DiscoveredChannel {
@@ -147,4 +139,59 @@ async fn run_yt_dlp_channel_dump(
 fn non_empty_owned(value: String) -> Option<String> {
     let trimmed = value.trim();
     (!trimmed.is_empty()).then_some(trimmed.to_owned())
+}
+
+fn build_discovered_channel_video(entry: YtDlpChannelVideoEntry) -> eyre::Result<DiscoveredChannelVideo> {
+    let video_id = YouTubeVideoId::try_new(&entry.id)?;
+    let video_url = entry
+        .url
+        .map(|url| YouTubeVideoUrl::try_new(&url))
+        .transpose()?
+        .unwrap_or_else(|| {
+            YouTubeVideoUrl::try_new(&format!(
+                "https://www.youtube.com/watch?v={}",
+                video_id.as_str()
+            ))
+            .expect("canonical watch url built from a validated video id should parse")
+        });
+    let video_title = entry.title.and_then(non_empty_owned);
+    Ok(DiscoveredChannelVideo {
+        video_id,
+        video_url,
+        video_title,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_discovered_channel_video;
+    use super::YtDlpChannelVideoEntry;
+
+    #[test]
+    fn rejects_invalid_video_url_from_ytdlp() {
+        let error = build_discovered_channel_video(YtDlpChannelVideoEntry {
+            id: "bQVXiDC5w54".to_owned(),
+            url: Some("https://www.youtube.com/channel/not-a-video".to_owned()),
+            title: None,
+        })
+        .expect_err("invalid yt-dlp video url should be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("unsupported YouTube video url")
+        );
+    }
+
+    #[test]
+    fn synthesizes_canonical_watch_url_when_ytdlp_omits_url() {
+        let discovered = build_discovered_channel_video(YtDlpChannelVideoEntry {
+            id: "bQVXiDC5w54".to_owned(),
+            url: None,
+            title: Some("Example".to_owned()),
+        })
+        .expect("video should build");
+
+        assert_eq!(discovered.video_url.as_str(), "https://www.youtube.com/watch?v=bQVXiDC5w54");
+    }
 }

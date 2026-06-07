@@ -1,3 +1,4 @@
+use crate::takeout::YouTubeVideoId;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -7,7 +8,7 @@ pub fn event_path_for(
     sync_dir: &Path,
     _channel_name: Option<&str>,
     _video_title: Option<&str>,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     event_at: &str,
     event_suffix: &str,
 ) -> PathBuf {
@@ -20,7 +21,11 @@ pub fn event_path_for(
 
 /// Build the canonical path for a raw fetched video-data event.
 #[must_use]
-pub fn video_fetch_event_path_for(sync_dir: &Path, video_id: &str, fetched_at: &str) -> PathBuf {
+pub fn video_fetch_event_path_for(
+    sync_dir: &Path,
+    video_id: YouTubeVideoId,
+    fetched_at: &str,
+) -> PathBuf {
     video_dir_path_for(sync_dir, video_id).join(format!(
         "event_{}_fetch_video_data.json",
         sanitize_timestamp(fetched_at)
@@ -31,7 +36,7 @@ pub fn video_fetch_event_path_for(sync_dir: &Path, video_id: &str, fetched_at: &
 #[must_use]
 pub fn video_download_request_event_path_for(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     requested_at: &str,
 ) -> PathBuf {
     video_dir_path_for(sync_dir, video_id).join(format!(
@@ -44,7 +49,7 @@ pub fn video_download_request_event_path_for(
 #[must_use]
 pub fn video_download_completed_event_path_for(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     downloaded_at: &str,
 ) -> PathBuf {
     video_dir_path_for(sync_dir, video_id).join(format!(
@@ -57,7 +62,7 @@ pub fn video_download_completed_event_path_for(
 #[must_use]
 pub fn video_download_failed_event_path_for(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     failed_at: &str,
 ) -> PathBuf {
     video_dir_path_for(sync_dir, video_id).join(format!(
@@ -70,7 +75,7 @@ pub fn video_download_failed_event_path_for(
 #[must_use]
 pub fn video_title_observation_path_for(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     observed_at: &str,
     title: &str,
 ) -> PathBuf {
@@ -86,7 +91,7 @@ pub fn video_title_observation_path_for(
 #[must_use]
 pub fn video_thumbnail_path_for(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     observed_at: &str,
     thumbnail_size: &str,
     source_url: &str,
@@ -105,7 +110,7 @@ pub fn video_thumbnail_path_for(
 #[must_use]
 pub fn video_thumbnail_unchanged_event_path_for(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     observed_at: &str,
     thumbnail_size: &str,
 ) -> PathBuf {
@@ -120,7 +125,7 @@ pub fn video_thumbnail_unchanged_event_path_for(
 #[must_use]
 pub fn video_thumbnail_unavailable_event_path_for(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     observed_at: &str,
     thumbnail_size: &str,
 ) -> PathBuf {
@@ -133,8 +138,8 @@ pub fn video_thumbnail_unavailable_event_path_for(
 
 /// Build the canonical directory path for a video in the sync database.
 #[must_use]
-pub fn video_dir_path_for(sync_dir: &Path, video_id: &str) -> PathBuf {
-    sync_dir.join("videos").join(video_id)
+pub fn video_dir_path_for(sync_dir: &Path, video_id: YouTubeVideoId) -> PathBuf {
+    sync_dir.join("videos").join(video_id.as_str())
 }
 
 /// Build the canonical event-id suffix for a playlist-membership event.
@@ -223,11 +228,15 @@ mod tests {
     use super::video_thumbnail_unchanged_event_path_for;
     use std::path::Path;
 
+    fn video_id(value: &str) -> crate::takeout::YouTubeVideoId {
+        crate::takeout::YouTubeVideoId::try_new(value).expect("video id should parse")
+    }
+
     #[test]
     fn builds_thumbnail_path_from_url_extension() {
         let path = video_thumbnail_path_for(
             Path::new("G:/sync-root"),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-02T15:04:05+00:00",
             "1280x720",
             "https://example.invalid/path/image.webp?foo=bar",
@@ -235,7 +244,7 @@ mod tests {
 
         assert_eq!(
             path.display().to_string().replace('\\', "/"),
-            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_thumbnail_1280x720.webp"
+            "G:/sync-root/videos/abc123def45/event_2026-04-02T15-04-05+00-00_thumbnail_1280x720.webp"
         );
     }
 
@@ -243,14 +252,14 @@ mod tests {
     fn builds_unchanged_thumbnail_event_path() {
         let path = video_thumbnail_unchanged_event_path_for(
             Path::new("G:/sync-root"),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-02T15:04:05+00:00",
             "120x90",
         );
 
         assert_eq!(
             path.display().to_string().replace('\\', "/"),
-            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_thumbnail_120x90_unchanged.json"
+            "G:/sync-root/videos/abc123def45/event_2026-04-02T15-04-05+00-00_thumbnail_120x90_unchanged.json"
         );
     }
 
@@ -258,14 +267,14 @@ mod tests {
     fn builds_unavailable_thumbnail_event_path() {
         let path = video_thumbnail_unavailable_event_path_for(
             Path::new("G:/sync-root"),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-02T15:04:05+00:00",
             "120x90",
         );
 
         assert_eq!(
             path.display().to_string().replace('\\', "/"),
-            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_thumbnail_120x90_unavailable.json"
+            "G:/sync-root/videos/abc123def45/event_2026-04-02T15-04-05+00-00_thumbnail_120x90_unavailable.json"
         );
     }
 
@@ -273,13 +282,13 @@ mod tests {
     fn builds_video_download_request_event_path() {
         let path = video_download_request_event_path_for(
             Path::new("G:/sync-root"),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-02T15:04:05+00:00",
         );
 
         assert_eq!(
             path.display().to_string().replace('\\', "/"),
-            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_download_video_requested.json"
+            "G:/sync-root/videos/abc123def45/event_2026-04-02T15-04-05+00-00_download_video_requested.json"
         );
     }
 
@@ -287,13 +296,13 @@ mod tests {
     fn builds_video_download_completed_event_path() {
         let path = video_download_completed_event_path_for(
             Path::new("G:/sync-root"),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-02T15:04:05+00:00",
         );
 
         assert_eq!(
             path.display().to_string().replace('\\', "/"),
-            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_download_video_completed.json"
+            "G:/sync-root/videos/abc123def45/event_2026-04-02T15-04-05+00-00_download_video_completed.json"
         );
     }
 
@@ -301,13 +310,13 @@ mod tests {
     fn builds_video_download_failed_event_path() {
         let path = video_download_failed_event_path_for(
             Path::new("G:/sync-root"),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-02T15:04:05+00:00",
         );
 
         assert_eq!(
             path.display().to_string().replace('\\', "/"),
-            "G:/sync-root/videos/abc123/event_2026-04-02T15-04-05+00-00_download_video_failed.json"
+            "G:/sync-root/videos/abc123def45/event_2026-04-02T15-04-05+00-00_download_video_failed.json"
         );
     }
 

@@ -3,6 +3,7 @@ use crate::fs_db::VideoEventFile;
 use crate::sync_progress::SyncProgress;
 use crate::takeout::PlaylistVideoEntry;
 use crate::takeout::WatchHistoryEntry;
+use crate::takeout::YouTubeVideoId;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::path::Path;
@@ -87,12 +88,8 @@ fn build_sync_summary(
     SyncDatabaseSummary {
         unique_video_count: playlist_entries
             .iter()
-            .map(|entry| entry.video_id.as_str().to_owned())
-            .chain(
-                watch_history_entries
-                    .iter()
-                    .map(|entry| entry.video_id.as_str().to_owned()),
-            )
+            .map(|entry| entry.video_id)
+            .chain(watch_history_entries.iter().map(|entry| entry.video_id))
             .collect::<BTreeSet<_>>()
             .len(),
         unique_playlist_count: playlist_entries
@@ -109,11 +106,11 @@ fn build_sync_summary(
 
 fn build_video_details_by_id(
     watch_history_entries: &[WatchHistoryEntry],
-) -> HashMap<String, (Option<String>, Option<String>)> {
+) -> HashMap<YouTubeVideoId, (Option<String>, Option<String>)> {
     let mut video_details_by_id = HashMap::new();
     for entry in watch_history_entries {
         video_details_by_id.insert(
-            entry.video_id.as_str().to_owned(),
+            entry.video_id,
             (Some(entry.title.clone()), entry.channel_name.clone()),
         );
     }
@@ -144,7 +141,7 @@ async fn write_watch_history_events(
             context.sync_dir,
             event_file.channel_name.as_deref(),
             Some(&entry.title),
-            entry.video_id.as_str(),
+            entry.video_id,
             &event_file.event_at,
             "watched",
         );
@@ -166,14 +163,14 @@ async fn write_watch_history_events(
 async fn write_playlist_events(
     context: &TakeoutWriteContext<'_>,
     playlist_entries: &[PlaylistVideoEntry],
-    video_details_by_id: &HashMap<String, (Option<String>, Option<String>)>,
+    video_details_by_id: &HashMap<YouTubeVideoId, (Option<String>, Option<String>)>,
     summary: &mut SyncDatabaseSummary,
     progress: &mut SyncProgress,
     progress_log_state: &mut TakeoutProgressLogState,
 ) -> eyre::Result<()> {
     for entry in playlist_entries {
         let (video_title, channel_name) = video_details_by_id
-            .get(entry.video_id.as_str())
+            .get(&entry.video_id)
             .cloned()
             .unwrap_or((None, None));
         let event_suffix = crate::fs_db::playlist_event_suffix(&entry.playlist_id);
@@ -193,7 +190,7 @@ async fn write_playlist_events(
             context.sync_dir,
             channel_name.as_deref(),
             video_title.as_deref(),
-            entry.video_id.as_str(),
+            entry.video_id,
             &event_file.event_at,
             &event_suffix,
         );

@@ -30,7 +30,7 @@ impl PlaylistVideoEntry {
             eyre::bail!("row {line_number} is missing the expected comma separator");
         };
 
-        let video_id = YouTubeVideoId::new(video_id.trim())
+        let video_id = YouTubeVideoId::try_new(video_id.trim())
             .wrap_err_with(|| format!("invalid video id on row {line_number}"))?;
         let added_at = DateTime::parse_from_rfc3339(added_at.trim()).wrap_err_with(|| {
             format!(

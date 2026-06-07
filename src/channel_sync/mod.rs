@@ -13,6 +13,7 @@ use crate::channel_sync::channel_sync_storage::write_channel_sync_target;
 use crate::channel_sync::channel_sync_storage::write_video_download_completed_event;
 use crate::channel_sync::channel_sync_storage::write_video_download_failed_event;
 use crate::channel_sync::channel_sync_storage::write_video_download_request_event;
+use crate::takeout::YouTubeVideoId;
 use chrono::Local;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -116,7 +117,8 @@ pub async fn plan_channel_sync(
         target_count: targets.len(),
         ..ChannelSyncPlanSummary::default()
     };
-    let mut work_items_by_video_id = BTreeMap::<String, VideoDownloadWorkItem>::new();
+    let mut work_items_by_video_id =
+        BTreeMap::<YouTubeVideoId, VideoDownloadWorkItem>::new();
 
     for target in &targets {
         let discover_started_at = Instant::now();
@@ -137,7 +139,7 @@ pub async fn plan_channel_sync(
         let discovered_video_ids = discovered_channel
             .entries
             .iter()
-            .map(|entry| entry.video_id.clone())
+            .map(|entry| entry.video_id)
             .collect::<Vec<_>>();
         let resolve_existing_started_at = Instant::now();
         let existing_media_by_video_id = find_existing_media_files_for_videos(
@@ -165,7 +167,7 @@ pub async fn plan_channel_sync(
 
         for entry in &discovered_channel.entries {
             if existing_media_by_video_id
-                .get(entry.video_id.as_str())
+                .get(&entry.video_id)
                 .is_some_and(|paths| !paths.is_empty())
             {
                 summary.already_on_disk_count += 1;
@@ -227,10 +229,9 @@ async fn assess_discovered_video(
     entry: &DiscoveredChannelVideo,
     mode: ChannelSyncPlanMode,
     summary: &mut ChannelSyncPlanSummary,
-    work_items_by_video_id: &mut BTreeMap<String, VideoDownloadWorkItem>,
+    work_items_by_video_id: &mut BTreeMap<YouTubeVideoId, VideoDownloadWorkItem>,
 ) -> eyre::Result<()> {
-    let download_index =
-        crate::fs_db::load_video_download_event_index(sync_dir, entry.video_id.as_str())?;
+    let download_index = crate::fs_db::load_video_download_event_index(sync_dir, entry.video_id)?;
 
     if download_index.has_pending_request()
         && let Some(request_path) = download_index.latest_request_event_path.as_deref()
@@ -239,7 +240,7 @@ async fn assess_discovered_video(
         if request_matches_discovered_video(&existing_request, target, entry) {
             summary.pending_request_count += 1;
             work_items_by_video_id
-                .entry(existing_request.video_id.clone())
+                .entry(existing_request.video_id)
                 .or_insert(VideoDownloadWorkItem {
                     request: existing_request,
                 });
@@ -257,7 +258,7 @@ async fn assess_discovered_video(
         let _ = write_video_download_request_event(sync_dir, &request).await?;
     }
     summary.new_request_count += 1;
-    work_items_by_video_id.insert(request.video_id.clone(), VideoDownloadWorkItem { request });
+    work_items_by_video_id.insert(entry.video_id, VideoDownloadWorkItem { request });
 
     Ok(())
 }
@@ -273,7 +274,7 @@ async fn execute_video_download_work_item(
 
     if let Some(media_path) = select_preferred_media_path(find_local_media_files_in_directory(
         &preferred_download_dir,
-        &work_item.request.video_id,
+        work_item.request.video_id,
     )?) {
         return write_completed_download_outcome(sync_dir, &work_item.request, &media_path).await;
     }
@@ -311,7 +312,7 @@ async fn execute_video_download_work_item(
         .arg("--print-to-file")
         .arg("after_move:%(filepath)s")
         .arg(&print_path)
-        .arg(&work_item.request.video_url)
+        .arg(work_item.request.video_url.as_str())
         .output()
         .await?;
 
@@ -320,7 +321,7 @@ async fn execute_video_download_work_item(
             select_preferred_media_path(
                 find_local_media_files_in_directory(
                     &preferred_download_dir,
-                    &work_item.request.video_id,
+                    work_item.request.video_id,
                 )
                 .ok()?,
             )
@@ -365,7 +366,7 @@ async fn write_completed_download_outcome(
         source_url: request.source_url.clone(),
         channel_id: request.channel_id.clone(),
         channel_name: request.channel_name.clone(),
-        video_id: request.video_id.clone(),
+        video_id: request.video_id,
         video_url: request.video_url.clone(),
         video_title: request.video_title.clone(),
         preferred_download_dir: request.preferred_download_dir.clone(),
@@ -395,7 +396,7 @@ async fn write_failed_download_outcome(
         source_url: request.source_url.clone(),
         channel_id: request.channel_id.clone(),
         channel_name: request.channel_name.clone(),
-        video_id: request.video_id.clone(),
+        video_id: request.video_id,
         video_url: request.video_url.clone(),
         video_title: request.video_title.clone(),
         preferred_download_dir: request.preferred_download_dir.clone(),
@@ -425,7 +426,7 @@ fn build_channel_discovery_event_file(channel: &DiscoveredChannel) -> ChannelDis
             .iter()
             .map(|entry| ChannelDiscoveryEventVideo {
                 video_id: entry.video_id.as_str().to_owned(),
-                video_url: entry.video_url.clone(),
+                video_url: entry.video_url.to_string(),
                 video_title: entry.video_title.clone(),
             })
             .collect(),
@@ -442,7 +443,7 @@ fn build_video_download_request(
         source_url: target.source_url.clone(),
         channel_id: target.channel_id.clone(),
         channel_name: target.channel_name.clone(),
-        video_id: entry.video_id.as_str().to_owned(),
+        video_id: entry.video_id,
         video_url: entry.video_url.clone(),
         video_title: entry.video_title.clone(),
         preferred_download_dir: target.preferred_download_dir.clone(),
@@ -455,18 +456,18 @@ fn request_matches_discovered_video(
     entry: &DiscoveredChannelVideo,
 ) -> bool {
     request.channel_id == target.channel_id
-        && request.video_id == entry.video_id.as_str()
+        && request.video_id == entry.video_id
         && request.video_url == entry.video_url
         && request.preferred_download_dir == target.preferred_download_dir
 }
 
 fn find_existing_media_files_for_videos(
-    video_ids: &[crate::takeout::YouTubeVideoId],
+    video_ids: &[YouTubeVideoId],
     preferred_download_dir: &Path,
-) -> eyre::Result<BTreeMap<String, Vec<PathBuf>>> {
+) -> eyre::Result<BTreeMap<YouTubeVideoId, Vec<PathBuf>>> {
     let unique_video_ids = video_ids
         .iter()
-        .map(|video_id| video_id.as_str().to_owned())
+        .copied()
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
@@ -486,7 +487,7 @@ fn find_existing_media_files_for_videos(
     let unresolved_video_ids = unique_video_ids
         .iter()
         .filter(|video_id| !existing_paths_by_video_id.contains_key(video_id.as_str()))
-        .cloned()
+        .copied()
         .collect::<Vec<_>>();
 
     if !unresolved_video_ids.is_empty() {
@@ -518,9 +519,9 @@ fn find_existing_media_files_for_videos(
 
         for path in matching_paths {
             for video_id in chunk {
-                if path_matches_video_id(&path, video_id) {
+                if path_matches_video_id(&path, *video_id) {
                     existing_paths_by_video_id
-                        .entry(video_id.clone())
+                        .entry(*video_id)
                         .or_default()
                         .push(path.clone());
                 }
@@ -536,19 +537,20 @@ fn find_existing_media_files_for_videos(
     Ok(existing_paths_by_video_id)
 }
 
-fn build_existing_media_queries(video_ids: &[String]) -> Vec<String> {
-    video_ids.to_vec()
+fn build_existing_media_queries(video_ids: &[YouTubeVideoId]) -> Vec<String> {
+    video_ids.iter().map(ToString::to_string).collect()
 }
 
 fn find_local_media_files_in_directory_for_video_ids(
     directory: &Path,
-    video_ids: &[String],
-) -> eyre::Result<BTreeMap<String, Vec<PathBuf>>> {
+    video_ids: &[YouTubeVideoId],
+) -> eyre::Result<BTreeMap<YouTubeVideoId, Vec<PathBuf>>> {
     if !directory.is_dir() || video_ids.is_empty() {
         return Ok(BTreeMap::new());
     }
 
-    let mut paths_by_video_id = BTreeMap::<String, Vec<PathBuf>>::new();
+    let mut paths_by_video_id =
+        BTreeMap::<YouTubeVideoId, Vec<PathBuf>>::new();
     for entry in std::fs::read_dir(directory)? {
         let entry = entry?;
         if !entry.file_type()?.is_file() {
@@ -561,9 +563,9 @@ fn find_local_media_files_in_directory_for_video_ids(
         }
 
         for video_id in video_ids {
-            if path_matches_video_id(&path, video_id) {
+            if path_matches_video_id(&path, *video_id) {
                 paths_by_video_id
-                    .entry(video_id.clone())
+                    .entry(*video_id)
                     .or_default()
                     .push(path.clone());
             }
@@ -578,7 +580,7 @@ fn find_local_media_files_in_directory_for_video_ids(
     Ok(paths_by_video_id)
 }
 
-fn path_matches_video_id(path: &Path, video_id: &str) -> bool {
+fn path_matches_video_id(path: &Path, video_id: YouTubeVideoId) -> bool {
     let Some(file_stem) = path.file_stem().and_then(std::ffi::OsStr::to_str) else {
         return false;
     };
@@ -586,8 +588,11 @@ fn path_matches_video_id(path: &Path, video_id: &str) -> bool {
     has_known_media_file_extension(path) && file_stem_matches_video_id(file_stem, video_id)
 }
 
-fn file_stem_matches_video_id(file_stem: &str, video_id: &str) -> bool {
-    file_stem == video_id || file_stem.ends_with(&format!("[{video_id}]"))
+fn file_stem_matches_video_id(
+    file_stem: &str,
+    video_id: YouTubeVideoId,
+) -> bool {
+    file_stem == video_id.as_str() || file_stem.ends_with(&format!("[{video_id}]"))
 }
 
 fn has_known_media_file_extension(path: &Path) -> bool {
@@ -599,7 +604,7 @@ fn has_known_media_file_extension(path: &Path) -> bool {
 
 fn find_local_media_files_in_directory(
     directory: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
 ) -> eyre::Result<Vec<PathBuf>> {
     if !directory.is_dir() {
         return Ok(Vec::new());
@@ -671,14 +676,20 @@ fn sanitize_component(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::build_existing_media_queries;
+    use crate::takeout::YouTubeVideoId;
+
+use super::build_existing_media_queries;
     use super::find_local_media_files_in_directory_for_video_ids;
     use super::path_matches_video_id;
     use std::path::Path;
 
+    fn video_id(value: &str) -> YouTubeVideoId {
+        YouTubeVideoId::try_new(value).expect("video id should parse")
+    }
+
     #[test]
     fn existing_media_queries_use_raw_video_ids_for_fast_mft_lookup() {
-        let queries = build_existing_media_queries(&["abc123def45".to_owned()]);
+        let queries = build_existing_media_queries(&[video_id("abc123def45")]);
 
         assert_eq!(queries, vec!["abc123def45".to_owned()]);
     }
@@ -687,23 +698,23 @@ mod tests {
     fn path_matching_requires_canonical_video_id_suffix() {
         assert!(path_matches_video_id(
             Path::new("Example [abc123def45].mkv"),
-            "abc123def45"
+            video_id("abc123def45")
         ));
         assert!(path_matches_video_id(
             Path::new("abc123def45.webm"),
-            "abc123def45"
+            video_id("abc123def45")
         ));
         assert!(!path_matches_video_id(
             Path::new("Example abc123def45 trailer.mkv"),
-            "abc123def45"
+            video_id("abc123def45")
         ));
         assert!(!path_matches_video_id(
             Path::new("abc123def45-extra.mkv"),
-            "abc123def45"
+            video_id("abc123def45")
         ));
         assert!(!path_matches_video_id(
             Path::new("abc123def45.txt"),
-            "abc123def45"
+            video_id("abc123def45")
         ));
     }
 
@@ -720,15 +731,15 @@ mod tests {
         let existing = find_local_media_files_in_directory_for_video_ids(
             temp_dir.path(),
             &[
-                "abc123def45".to_owned(),
-                "zzz98765432".to_owned(),
-                "missing0000".to_owned(),
+                video_id("abc123def45"),
+                video_id("zzz98765432"),
+                video_id("miss1ng0000"),
             ],
         )?;
 
         assert_eq!(existing.get("abc123def45").map(Vec::len), Some(1));
         assert_eq!(existing.get("zzz98765432").map(Vec::len), Some(1));
-        assert!(!existing.contains_key("missing0000"));
+        assert!(!existing.contains_key("miss1ng0000"));
         Ok(())
     }
 }

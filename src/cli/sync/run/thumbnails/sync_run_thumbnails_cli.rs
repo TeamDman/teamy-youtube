@@ -10,6 +10,8 @@ use std::path::PathBuf;
 use std::time::Instant;
 use tracing::info;
 
+use crate::takeout::YouTubeVideoId;
+
 // yt[sync.thumbnails.command]
 /// Download thumbnail assets for videos that already have raw fetch data.
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
@@ -85,7 +87,7 @@ struct ThumbnailVideoPlan {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ThumbnailWorkItem {
-    video_id: String,
+    video_id: YouTubeVideoId,
     thumbnail: crate::youtube_api::YouTubeThumbnail,
     thumbnail_size: String,
     existing_asset_path: Option<PathBuf>,
@@ -213,8 +215,7 @@ async fn build_thumbnail_sync_plan_with_refresh(
     let mut work_items = Vec::new();
 
     for video_id in inspected_video_ids {
-        let video_plan =
-            inspect_video_thumbnail_work(sync_dir, video_id.as_str(), refresh_policy).await?;
+        let video_plan = inspect_video_thumbnail_work(sync_dir, video_id, refresh_policy).await?;
         counts.source_videos += video_plan.counts.source_videos;
         counts.discovered += video_plan.counts.discovered;
         counts.existing += video_plan.counts.existing;
@@ -251,7 +252,7 @@ pub(crate) async fn summarize_thumbnail_plan(
 
 async fn inspect_video_thumbnail_work(
     sync_dir: &Path,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     refresh_policy: Option<&ThumbnailRefreshPolicy>,
 ) -> eyre::Result<ThumbnailVideoPlan> {
     let Some(fetch_event_path) =
@@ -292,7 +293,7 @@ async fn inspect_video_thumbnail_work(
 }
 
 fn inspect_single_thumbnail(
-    video_id: &str,
+    video_id: YouTubeVideoId,
     context: &ThumbnailInspectionContext<'_>,
     thumbnail: crate::youtube_api::YouTubeThumbnail,
     plan: &mut ThumbnailVideoPlan,
@@ -325,7 +326,7 @@ fn inspect_single_thumbnail(
     }
 
     plan.work_items.push(ThumbnailWorkItem {
-        video_id: video_id.to_owned(),
+        video_id,
         thumbnail,
         thumbnail_size,
         existing_asset_path: existing_asset.map(|value| value.path.clone()),
@@ -346,14 +347,14 @@ async fn process_thumbnail_work_item(
             let (event_path, event_bytes) = write_unavailable_thumbnail_event(
                 context.sync_dir,
                 &observed_at,
-                &work_item.video_id,
+                work_item.video_id,
                 &work_item.thumbnail,
                 &work_item.thumbnail_size,
                 status.as_u16(),
             )
             .await?;
             info!(
-                video_id = work_item.video_id,
+                video_id = %work_item.video_id,
                 thumbnail_size = work_item.thumbnail_size,
                 thumbnail_url = work_item.thumbnail.url,
                 status_code = status.as_u16(),
@@ -382,7 +383,7 @@ async fn process_thumbnail_work_item(
             let (unchanged_event_path, event_bytes) = write_unchanged_thumbnail_event(
                 context.sync_dir,
                 &observed_at,
-                &work_item.video_id,
+                work_item.video_id,
                 &work_item.thumbnail,
                 &work_item.thumbnail_size,
                 existing_asset_path,
@@ -400,7 +401,7 @@ async fn process_thumbnail_work_item(
     // yt[sync.thumbnails.event-assets]
     let thumbnail_path = crate::fs_db::video_thumbnail_path_for(
         context.sync_dir,
-        &work_item.video_id,
+        work_item.video_id,
         &observed_at,
         &work_item.thumbnail_size,
         &work_item.thumbnail.url,
@@ -486,7 +487,7 @@ fn format_optional_limit(value: Option<usize>) -> String {
 async fn write_unavailable_thumbnail_event(
     sync_dir: &Path,
     observed_at: &str,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     thumbnail: &crate::youtube_api::YouTubeThumbnail,
     thumbnail_size: &str,
     status_code: u16,
@@ -499,7 +500,7 @@ async fn write_unavailable_thumbnail_event(
     );
     let event_file = crate::fs_db::ThumbnailUnavailableEventFile {
         observed_at: observed_at.to_owned(),
-        video_id: video_id.to_owned(),
+        video_id: video_id.to_string(),
         thumbnail_size: thumbnail_size.to_owned(),
         source_url: thumbnail.url.clone(),
         status_code,
@@ -513,7 +514,7 @@ async fn write_unavailable_thumbnail_event(
 async fn write_unchanged_thumbnail_event(
     sync_dir: &Path,
     observed_at: &str,
-    video_id: &str,
+    video_id: YouTubeVideoId,
     thumbnail: &crate::youtube_api::YouTubeThumbnail,
     thumbnail_size: &str,
     compared_asset_path: &Path,
@@ -526,7 +527,7 @@ async fn write_unchanged_thumbnail_event(
     );
     let event_file = crate::fs_db::ThumbnailUnchangedEventFile {
         observed_at: observed_at.to_owned(),
-        video_id: video_id.to_owned(),
+        video_id: video_id.to_string(),
         thumbnail_size: thumbnail_size.to_owned(),
         width: thumbnail.width,
         height: thumbnail.height,
@@ -549,6 +550,10 @@ mod tests {
     use super::parse_refresh_policy;
     use super::should_refresh_thumbnail;
     use tempfile::TempDir;
+
+    fn video_id(value: &str) -> crate::takeout::YouTubeVideoId {
+        crate::takeout::YouTubeVideoId::try_new(value).expect("video id should parse")
+    }
 
     #[test]
     fn formats_missing_optional_age() {
@@ -602,23 +607,23 @@ mod tests {
     #[tokio::test]
     async fn thumbnail_plan_skips_already_materialized_thumbnail_work() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
-        let video_dir = temp_dir.path().join("videos").join("abc123");
+        let video_dir = temp_dir.path().join("videos").join("abc123def45");
         std::fs::create_dir_all(&video_dir).expect("video dir should be created");
 
         let fetch_event_path = crate::fs_db::video_fetch_event_path_for(
             temp_dir.path(),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-04T00:00:00+00:00",
         );
         std::fs::write(
             &fetch_event_path,
-            r#"{"items":[{"id":"abc123","contentDetails":{"duration":"PT1M"},"snippet":{"publishedAt":"2026-01-01T00:00:00Z","channelId":"UC123","title":"Example","description":"desc","channelTitle":"Channel","thumbnails":{"default":{"url":"https://example.invalid/default.jpg","width":120,"height":90}}},"statistics":null,"status":null}]}"#,
+            r#"{"items":[{"id":"abc123def45","contentDetails":{"duration":"PT1M"},"snippet":{"publishedAt":"2026-01-01T00:00:00Z","channelId":"UC123","title":"Example","description":"desc","channelTitle":"Channel","thumbnails":{"default":{"url":"https://example.invalid/default.jpg","width":120,"height":90}}},"statistics":null,"status":null}]}"#,
         )
         .expect("fetch event should be written");
 
         let thumbnail_path = crate::fs_db::video_thumbnail_path_for(
             temp_dir.path(),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-04T00:01:00+00:00",
             "120x90",
             "https://example.invalid/default.jpg",
@@ -640,23 +645,23 @@ mod tests {
     #[tokio::test]
     async fn thumbnail_plan_skips_previously_unavailable_thumbnail_work() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
-        let video_dir = temp_dir.path().join("videos").join("abc123");
+        let video_dir = temp_dir.path().join("videos").join("abc123def45");
         std::fs::create_dir_all(&video_dir).expect("video dir should be created");
 
         let fetch_event_path = crate::fs_db::video_fetch_event_path_for(
             temp_dir.path(),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-04T00:00:00+00:00",
         );
         std::fs::write(
             &fetch_event_path,
-            r#"{"items":[{"id":"abc123","contentDetails":{"duration":"PT1M"},"snippet":{"publishedAt":"2026-01-01T00:00:00Z","channelId":"UC123","title":"Example","description":"desc","channelTitle":"Channel","thumbnails":{"default":{"url":"https://example.invalid/default.jpg","width":120,"height":90}}},"statistics":null,"status":null}]}"#,
+            r#"{"items":[{"id":"abc123def45","contentDetails":{"duration":"PT1M"},"snippet":{"publishedAt":"2026-01-01T00:00:00Z","channelId":"UC123","title":"Example","description":"desc","channelTitle":"Channel","thumbnails":{"default":{"url":"https://example.invalid/default.jpg","width":120,"height":90}}},"statistics":null,"status":null}]}"#,
         )
         .expect("fetch event should be written");
 
         let unavailable_event_path = crate::fs_db::video_thumbnail_unavailable_event_path_for(
             temp_dir.path(),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-04T00:01:00+00:00",
             "120x90",
         );
@@ -676,17 +681,17 @@ mod tests {
     #[tokio::test]
     async fn thumbnail_plan_includes_missing_thumbnail_work() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
-        let video_dir = temp_dir.path().join("videos").join("abc123");
+        let video_dir = temp_dir.path().join("videos").join("abc123def45");
         std::fs::create_dir_all(&video_dir).expect("video dir should be created");
 
         let fetch_event_path = crate::fs_db::video_fetch_event_path_for(
             temp_dir.path(),
-            "abc123",
+            video_id("abc123def45"),
             "2026-04-04T00:00:00+00:00",
         );
         std::fs::write(
             &fetch_event_path,
-            r#"{"items":[{"id":"abc123","contentDetails":{"duration":"PT1M"},"snippet":{"publishedAt":"2026-01-01T00:00:00Z","channelId":"UC123","title":"Example","description":"desc","channelTitle":"Channel","thumbnails":{"default":{"url":"https://example.invalid/default.jpg","width":120,"height":90}}},"statistics":null,"status":null}]}"#,
+            r#"{"items":[{"id":"abc123def45","contentDetails":{"duration":"PT1M"},"snippet":{"publishedAt":"2026-01-01T00:00:00Z","channelId":"UC123","title":"Example","description":"desc","channelTitle":"Channel","thumbnails":{"default":{"url":"https://example.invalid/default.jpg","width":120,"height":90}}},"statistics":null,"status":null}]}"#,
         )
         .expect("fetch event should be written");
 
