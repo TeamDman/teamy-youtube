@@ -67,6 +67,7 @@ impl<'a> From<&'a YouTubeVideoUrl> for YouTubeVideoArgument<'a> {
 }
 
 impl YouTubeVideoArgument<'_> {
+    #[must_use]
     pub fn into_owned(self) -> YouTubeVideoArgument<'static> {
         match self {
             Self::Id(value) => YouTubeVideoArgument::Id(value),

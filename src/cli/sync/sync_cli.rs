@@ -10,7 +10,7 @@ use figue as args;
 use std::time::Duration;
 use std::time::SystemTime;
 
-const DEFAULT_TEAMY_MFT_MAX_AGE: Duration = Duration::from_secs(2 * 60 * 60);
+const DEFAULT_TEAMY_MFT_MAX_AGE: Duration = Duration::from_hours(2);
 
 /// Build or inspect the persisted sync database.
 #[derive(Facet, Arbitrary, Debug, PartialEq)]

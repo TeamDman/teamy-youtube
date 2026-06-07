@@ -622,8 +622,7 @@ fn find_local_media_files_in_directory(
 fn select_preferred_media_path(paths: Vec<PathBuf>) -> Option<PathBuf> {
     paths.into_iter().max_by_key(|path| {
         std::fs::metadata(path)
-            .map(|metadata| metadata.len())
-            .unwrap_or(0)
+            .map_or(0, |metadata| metadata.len())
     })
 }
 
@@ -631,9 +630,7 @@ fn read_printed_media_path(path: &Path) -> Option<PathBuf> {
     let content = std::fs::read_to_string(path).ok()?;
     let line = content
         .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .next_back()?;
+        .map(str::trim).rfind(|line| !line.is_empty())?;
     let media_path = PathBuf::from(line);
     (media_path.is_file() && has_known_media_file_extension(&media_path)).then_some(media_path)
 }

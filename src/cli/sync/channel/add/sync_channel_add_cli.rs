@@ -6,7 +6,7 @@ use std::path::PathBuf;
 /// Track a channel and remember the preferred directory for future downloads.
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
 pub struct SyncChannelAddArgs {
-    /// A YouTube channel URL or `@handle`.
+    /// A `YouTube` channel URL or `@handle`.
     #[facet(args::positional)]
     pub channel: String,
 
