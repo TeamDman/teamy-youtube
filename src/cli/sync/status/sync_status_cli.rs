@@ -46,45 +46,39 @@ impl SyncStatusArgs {
 
         println!(
             "fetch-candidate-video-count={}",
-            fetch_summary.candidate_video_count
+            fetch_summary.candidate_videos
         );
         println!(
             "fetch-existing-video-count={}",
-            fetch_summary.existing_fetch_count
+            fetch_summary.existing_fetches
         );
         println!(
             "fetch-missing-video-count={}",
-            fetch_summary.missing_fetch_count
+            fetch_summary.missing_fetches
         );
         println!(
             "fetch-planned-video-count={}",
-            fetch_summary.fetch_planned_video_count
+            fetch_summary.planned_fetches
         );
 
         println!(
             "thumbnail-candidate-video-count={}",
-            thumbnail_summary.candidate_video_count
+            thumbnail_summary.candidate_videos
         );
         println!(
             "thumbnail-source-video-count={}",
-            thumbnail_summary.source_video_count
+            thumbnail_summary.source_videos
         );
         println!(
             "thumbnail-discovered-count={}",
-            thumbnail_summary.discovered_count
+            thumbnail_summary.discovered
         );
-        println!(
-            "thumbnail-existing-count={}",
-            thumbnail_summary.existing_count
-        );
+        println!("thumbnail-existing-count={}", thumbnail_summary.existing);
         println!(
             "thumbnail-unavailable-count={}",
-            thumbnail_summary.unavailable_count
+            thumbnail_summary.unavailable
         );
-        println!(
-            "thumbnail-work-item-count={}",
-            thumbnail_summary.work_item_count
-        );
+        println!("thumbnail-work-item-count={}", thumbnail_summary.work_items);
 
         println!("channel-target-count={}", channel_plan.summary.target_count);
         println!(

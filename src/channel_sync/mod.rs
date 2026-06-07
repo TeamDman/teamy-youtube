@@ -82,6 +82,11 @@ struct VideoDownloadExecutionOutcome {
     last_written_file: Option<String>,
 }
 
+/// Add one tracked channel sync target to the sync database.
+///
+/// # Errors
+///
+/// Returns an error if channel discovery fails or the target file cannot be written.
 pub async fn add_channel_sync_target(
     sync_dir: &Path,
     requested_input: &str,
@@ -107,6 +112,12 @@ pub async fn add_channel_sync_target(
     })
 }
 
+/// Build the current channel-download plan from tracked channels and existing sync state.
+///
+/// # Errors
+///
+/// Returns an error if tracked targets cannot be loaded, channel discovery fails, download-event
+/// indexes cannot be read, or existing-media lookups fail.
 pub async fn plan_channel_sync(
     sync_dir: &Path,
     mode: ChannelSyncPlanMode,
@@ -137,7 +148,7 @@ pub async fn plan_channel_sync(
         let discovered_video_ids = discovered_channel
             .entries
             .iter()
-            .map(|entry| entry.video_id)
+            .map(|entry| entry.id)
             .collect::<Vec<_>>();
         let resolve_existing_started_at = Instant::now();
         let existing_media_by_video_id = find_existing_media_files_for_videos(
@@ -165,7 +176,7 @@ pub async fn plan_channel_sync(
 
         for entry in &discovered_channel.entries {
             if existing_media_by_video_id
-                .get(&entry.video_id)
+                .get(&entry.id)
                 .is_some_and(|paths| !paths.is_empty())
             {
                 summary.already_on_disk_count += 1;
@@ -193,6 +204,12 @@ pub async fn plan_channel_sync(
     })
 }
 
+/// Execute a previously planned set of channel video downloads.
+///
+/// # Errors
+///
+/// Returns an error if download directories cannot be created, `yt-dlp` fails unexpectedly, or
+/// completed/failed event files cannot be written.
 pub async fn execute_channel_sync_plan(
     sync_dir: &Path,
     plan: &ChannelSyncPlan,
@@ -229,7 +246,7 @@ async fn assess_discovered_video(
     summary: &mut ChannelSyncPlanSummary,
     work_items_by_video_id: &mut BTreeMap<YouTubeVideoId, VideoDownloadWorkItem>,
 ) -> eyre::Result<()> {
-    let download_index = crate::fs_db::load_video_download_event_index(sync_dir, entry.video_id)?;
+    let download_index = crate::fs_db::load_video_download_event_index(sync_dir, entry.id)?;
 
     if download_index.has_pending_request()
         && let Some(request_path) = download_index.latest_request_event_path.as_deref()
@@ -256,7 +273,7 @@ async fn assess_discovered_video(
         let _ = write_video_download_request_event(sync_dir, &request).await?;
     }
     summary.new_request_count += 1;
-    work_items_by_video_id.insert(entry.video_id, VideoDownloadWorkItem { request });
+    work_items_by_video_id.insert(entry.id, VideoDownloadWorkItem { request });
 
     Ok(())
 }
@@ -423,9 +440,9 @@ fn build_channel_discovery_event_file(channel: &DiscoveredChannel) -> ChannelDis
             .entries
             .iter()
             .map(|entry| ChannelDiscoveryEventVideo {
-                video_id: entry.video_id.as_str().to_owned(),
-                video_url: entry.video_url.to_string(),
-                video_title: entry.video_title.clone(),
+                video_id: entry.id.as_str().to_owned(),
+                video_url: entry.url.to_string(),
+                video_title: entry.title.clone(),
             })
             .collect(),
     }
@@ -441,9 +458,9 @@ fn build_video_download_request(
         source_url: target.source_url.clone(),
         channel_id: target.channel_id.clone(),
         channel_name: target.channel_name.clone(),
-        video_id: entry.video_id,
-        video_url: entry.video_url.clone(),
-        video_title: entry.video_title.clone(),
+        video_id: entry.id,
+        video_url: entry.url.clone(),
+        video_title: entry.title.clone(),
         preferred_download_dir: target.preferred_download_dir.clone(),
     }
 }
@@ -454,8 +471,8 @@ fn request_matches_discovered_video(
     entry: &DiscoveredChannelVideo,
 ) -> bool {
     request.channel_id == target.channel_id
-        && request.video_id == entry.video_id
-        && request.video_url == entry.video_url
+        && request.video_id == entry.id
+        && request.video_url == entry.url
         && request.preferred_download_dir == target.preferred_download_dir
 }
 
@@ -620,17 +637,17 @@ fn find_local_media_files_in_directory(
 }
 
 fn select_preferred_media_path(paths: Vec<PathBuf>) -> Option<PathBuf> {
-    paths.into_iter().max_by_key(|path| {
-        std::fs::metadata(path)
-            .map_or(0, |metadata| metadata.len())
-    })
+    paths
+        .into_iter()
+        .max_by_key(|path| std::fs::metadata(path).map_or(0, |metadata| metadata.len()))
 }
 
 fn read_printed_media_path(path: &Path) -> Option<PathBuf> {
     let content = std::fs::read_to_string(path).ok()?;
     let line = content
         .lines()
-        .map(str::trim).rfind(|line| !line.is_empty())?;
+        .map(str::trim)
+        .rfind(|line| !line.is_empty())?;
     let media_path = PathBuf::from(line);
     (media_path.is_file() && has_known_media_file_extension(&media_path)).then_some(media_path)
 }

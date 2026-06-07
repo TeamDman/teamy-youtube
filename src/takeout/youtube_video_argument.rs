@@ -110,11 +110,9 @@ impl TryFrom<YouTubeVideoArgumentProxy> for YouTubeVideoArgument<'static> {
     }
 }
 
-impl TryFrom<&YouTubeVideoArgument<'_>> for YouTubeVideoArgumentProxy {
-    type Error = std::convert::Infallible;
-
-    fn try_from(value: &YouTubeVideoArgument<'_>) -> Result<Self, Self::Error> {
-        Ok(Self(value.to_string()))
+impl From<&YouTubeVideoArgument<'_>> for YouTubeVideoArgumentProxy {
+    fn from(value: &YouTubeVideoArgument<'_>) -> Self {
+        Self(value.to_string())
     }
 }
 

@@ -37,7 +37,8 @@ impl YouTubeVideoId {
 
     #[must_use]
     pub fn as_str(&self) -> &str {
-        std::str::from_utf8(&self.0).expect("validated ASCII video ids are valid UTF-8")
+        // Safety: `try_new` and `Arbitrary` only construct ASCII bytes, which are always UTF-8.
+        unsafe { std::str::from_utf8_unchecked(&self.0) }
     }
 }
 
@@ -93,11 +94,9 @@ impl TryFrom<YouTubeVideoIdProxy> for YouTubeVideoId {
     }
 }
 
-impl TryFrom<&YouTubeVideoId> for YouTubeVideoIdProxy {
-    type Error = std::convert::Infallible;
-
-    fn try_from(value: &YouTubeVideoId) -> Result<Self, Self::Error> {
-        Ok(Self(value.to_string()))
+impl From<&YouTubeVideoId> for YouTubeVideoIdProxy {
+    fn from(value: &YouTubeVideoId) -> Self {
+        Self(value.to_string())
     }
 }
 

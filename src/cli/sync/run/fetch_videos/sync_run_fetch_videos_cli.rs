@@ -26,11 +26,11 @@ struct FetchVideoPlan {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct FetchVideoPlanSummary {
-    pub candidate_video_count: usize,
-    pub existing_fetch_count: usize,
-    pub missing_fetch_count: usize,
-    pub fetch_planned_video_count: usize,
-    pub skipped_due_to_limit_count: usize,
+    pub candidate_videos: usize,
+    pub existing_fetches: usize,
+    pub missing_fetches: usize,
+    pub planned_fetches: usize,
+    pub skipped_due_to_limit: usize,
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -99,11 +99,11 @@ fn build_fetch_video_plan(
 pub(crate) fn summarize_fetch_video_plan(sync_dir: &Path) -> eyre::Result<FetchVideoPlanSummary> {
     let plan = build_fetch_video_plan(sync_dir, None)?;
     Ok(FetchVideoPlanSummary {
-        candidate_video_count: plan.existing_fetch_count + plan.total_missing_video_count,
-        existing_fetch_count: plan.existing_fetch_count,
-        missing_fetch_count: plan.total_missing_video_count,
-        fetch_planned_video_count: plan.missing_video_ids.len(),
-        skipped_due_to_limit_count: plan.skipped_due_to_limit_count,
+        candidate_videos: plan.existing_fetch_count + plan.total_missing_video_count,
+        existing_fetches: plan.existing_fetch_count,
+        missing_fetches: plan.total_missing_video_count,
+        planned_fetches: plan.missing_video_ids.len(),
+        skipped_due_to_limit: plan.skipped_due_to_limit_count,
     })
 }
 

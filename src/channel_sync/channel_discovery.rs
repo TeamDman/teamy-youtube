@@ -17,9 +17,9 @@ pub struct DiscoveredChannel {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiscoveredChannelVideo {
-    pub video_id: YouTubeVideoId,
-    pub video_url: YouTubeVideoUrl,
-    pub video_title: Option<String>,
+    pub id: YouTubeVideoId,
+    pub url: YouTubeVideoUrl,
+    pub title: Option<String>,
 }
 
 #[derive(Clone, Debug, Facet, PartialEq)]
@@ -136,9 +136,9 @@ async fn run_yt_dlp_channel_dump(
     facet_json::from_str(stdout.trim()).wrap_err("failed parsing yt-dlp channel discovery JSON")
 }
 
-fn non_empty_owned(value: String) -> Option<String> {
+fn non_empty(value: &str) -> Option<&str> {
     let trimmed = value.trim();
-    (!trimmed.is_empty()).then_some(trimmed.to_owned())
+    (!trimmed.is_empty()).then_some(trimmed)
 }
 
 fn build_discovered_channel_video(
@@ -156,11 +156,15 @@ fn build_discovered_channel_video(
             ))
             .expect("canonical watch url built from a validated video id should parse")
         });
-    let video_title = entry.title.and_then(non_empty_owned);
+    let video_title = entry
+        .title
+        .as_deref()
+        .and_then(non_empty)
+        .map(str::to_owned);
     Ok(DiscoveredChannelVideo {
-        video_id,
-        video_url,
-        video_title,
+        id: video_id,
+        url: video_url,
+        title: video_title,
     })
 }
 
@@ -191,7 +195,7 @@ mod tests {
         .expect("video should build");
 
         assert_eq!(
-            discovered.video_url.as_str(),
+            discovered.url.as_str(),
             "https://www.youtube.com/watch?v=bQVXiDC5w54"
         );
     }

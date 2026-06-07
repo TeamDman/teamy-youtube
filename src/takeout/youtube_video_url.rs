@@ -90,11 +90,9 @@ impl TryFrom<YouTubeVideoUrlProxy> for YouTubeVideoUrl {
     }
 }
 
-impl TryFrom<&YouTubeVideoUrl> for YouTubeVideoUrlProxy {
-    type Error = std::convert::Infallible;
-
-    fn try_from(value: &YouTubeVideoUrl) -> Result<Self, Self::Error> {
-        Ok(Self(value.to_string()))
+impl From<&YouTubeVideoUrl> for YouTubeVideoUrlProxy {
+    fn from(value: &YouTubeVideoUrl) -> Self {
+        Self(value.to_string())
     }
 }
 
@@ -116,9 +114,8 @@ fn extract_video_id(url: &reqwest::Url) -> eyre::Result<Option<YouTubeVideoId>> 
 }
 
 fn extract_youtu_be_video_id(url: &reqwest::Url) -> eyre::Result<Option<YouTubeVideoId>> {
-    let mut segments = match url.path_segments() {
-        Some(segments) => segments,
-        None => return Ok(None),
+    let Some(mut segments) = url.path_segments() else {
+        return Ok(None);
     };
     let Some(segment) = segments.next() else {
         return Ok(None);
