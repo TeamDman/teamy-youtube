@@ -81,10 +81,8 @@ impl FetchVideoArgs {
 mod tests {
     #[test]
     fn cli_parses_video_url_into_typed_argument() {
-        let args: super::FetchVideoArgs = figue::from_slice(&[
-            "https://www.youtube.com/watch?v=bQVXiDC5w54",
-        ])
-        .unwrap();
+        let args: super::FetchVideoArgs =
+            figue::from_slice(&["https://www.youtube.com/watch?v=bQVXiDC5w54"]).unwrap();
 
         assert_eq!(args.video.video_id().as_str(), "bQVXiDC5w54");
     }

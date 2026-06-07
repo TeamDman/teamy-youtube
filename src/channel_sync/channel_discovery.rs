@@ -141,7 +141,9 @@ fn non_empty_owned(value: String) -> Option<String> {
     (!trimmed.is_empty()).then_some(trimmed.to_owned())
 }
 
-fn build_discovered_channel_video(entry: YtDlpChannelVideoEntry) -> eyre::Result<DiscoveredChannelVideo> {
+fn build_discovered_channel_video(
+    entry: YtDlpChannelVideoEntry,
+) -> eyre::Result<DiscoveredChannelVideo> {
     let video_id = YouTubeVideoId::try_new(&entry.id)?;
     let video_url = entry
         .url
@@ -164,8 +166,8 @@ fn build_discovered_channel_video(entry: YtDlpChannelVideoEntry) -> eyre::Result
 
 #[cfg(test)]
 mod tests {
-    use super::build_discovered_channel_video;
     use super::YtDlpChannelVideoEntry;
+    use super::build_discovered_channel_video;
 
     #[test]
     fn rejects_invalid_video_url_from_ytdlp() {
@@ -176,11 +178,7 @@ mod tests {
         })
         .expect_err("invalid yt-dlp video url should be rejected");
 
-        assert!(
-            error
-                .to_string()
-                .contains("unsupported YouTube video url")
-        );
+        assert!(error.to_string().contains("unsupported YouTube video url"));
     }
 
     #[test]
@@ -192,6 +190,9 @@ mod tests {
         })
         .expect("video should build");
 
-        assert_eq!(discovered.video_url.as_str(), "https://www.youtube.com/watch?v=bQVXiDC5w54");
+        assert_eq!(
+            discovered.video_url.as_str(),
+            "https://www.youtube.com/watch?v=bQVXiDC5w54"
+        );
     }
 }

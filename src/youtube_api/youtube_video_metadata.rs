@@ -81,8 +81,9 @@ pub async fn fetch_video_data(
         YouTubeFetchedVideoMetadata {
             raw_response_body: RawJson::from(response_body),
             source_url,
-            video_id: YouTubeVideoId::try_new(&item.id)
-                .wrap_err_with(|| format!("invalid video id returned by YouTube API: {}", item.id))?,
+            video_id: YouTubeVideoId::try_new(&item.id).wrap_err_with(|| {
+                format!("invalid video id returned by YouTube API: {}", item.id)
+            })?,
             title: item.snippet.title,
             description: item.snippet.description,
             channel_id: item.snippet.channel_id,

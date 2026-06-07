@@ -14,6 +14,7 @@ use crate::channel_sync::channel_sync_storage::write_video_download_completed_ev
 use crate::channel_sync::channel_sync_storage::write_video_download_failed_event;
 use crate::channel_sync::channel_sync_storage::write_video_download_request_event;
 use crate::takeout::YouTubeVideoId;
+pub use channel_sync_target_file::*;
 use chrono::Local;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -23,8 +24,6 @@ use std::time::Instant;
 use tokio::process::Command;
 use tracing::debug;
 use tracing::info;
-
-pub use channel_sync_target_file::*;
 pub use video_download_event_file::*;
 
 const KNOWN_MEDIA_FILE_EXTENSIONS: &[&str] = &[
@@ -117,8 +116,7 @@ pub async fn plan_channel_sync(
         target_count: targets.len(),
         ..ChannelSyncPlanSummary::default()
     };
-    let mut work_items_by_video_id =
-        BTreeMap::<YouTubeVideoId, VideoDownloadWorkItem>::new();
+    let mut work_items_by_video_id = BTreeMap::<YouTubeVideoId, VideoDownloadWorkItem>::new();
 
     for target in &targets {
         let discover_started_at = Instant::now();
@@ -549,8 +547,7 @@ fn find_local_media_files_in_directory_for_video_ids(
         return Ok(BTreeMap::new());
     }
 
-    let mut paths_by_video_id =
-        BTreeMap::<YouTubeVideoId, Vec<PathBuf>>::new();
+    let mut paths_by_video_id = BTreeMap::<YouTubeVideoId, Vec<PathBuf>>::new();
     for entry in std::fs::read_dir(directory)? {
         let entry = entry?;
         if !entry.file_type()?.is_file() {
@@ -588,10 +585,7 @@ fn path_matches_video_id(path: &Path, video_id: YouTubeVideoId) -> bool {
     has_known_media_file_extension(path) && file_stem_matches_video_id(file_stem, video_id)
 }
 
-fn file_stem_matches_video_id(
-    file_stem: &str,
-    video_id: YouTubeVideoId,
-) -> bool {
+fn file_stem_matches_video_id(file_stem: &str, video_id: YouTubeVideoId) -> bool {
     file_stem == video_id.as_str() || file_stem.ends_with(&format!("[{video_id}]"))
 }
 
@@ -676,11 +670,10 @@ fn sanitize_component(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::takeout::YouTubeVideoId;
-
-use super::build_existing_media_queries;
+    use super::build_existing_media_queries;
     use super::find_local_media_files_in_directory_for_video_ids;
     use super::path_matches_video_id;
+    use crate::takeout::YouTubeVideoId;
     use std::path::Path;
 
     fn video_id(value: &str) -> YouTubeVideoId {

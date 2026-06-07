@@ -1,5 +1,5 @@
-use crate::youtube_api::YouTubeFetchedVideoMetadata;
 use crate::takeout::YouTubeVideoId;
+use crate::youtube_api::YouTubeFetchedVideoMetadata;
 use facet_json::RawJson;
 
 /// The terminal outcome of fetching a video's data from the `YouTube` Data API.

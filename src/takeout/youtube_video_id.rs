@@ -21,17 +21,13 @@ impl YouTubeVideoId {
             eyre::bail!("video id cannot be empty");
         }
         if trimmed.len() != YOUTUBE_VIDEO_ID_LENGTH {
-            eyre::bail!(
-                "video id must be exactly {YOUTUBE_VIDEO_ID_LENGTH} characters long"
-            );
+            eyre::bail!("video id must be exactly {YOUTUBE_VIDEO_ID_LENGTH} characters long");
         }
         if !trimmed
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
         {
-            eyre::bail!(
-                "video id must contain only ASCII letters, digits, '-' or '_'"
-            );
+            eyre::bail!("video id must contain only ASCII letters, digits, '-' or '_'");
         }
 
         let bytes = <[u8; YOUTUBE_VIDEO_ID_LENGTH]>::try_from(trimmed.as_bytes())
@@ -47,8 +43,7 @@ impl YouTubeVideoId {
 
 impl Arbitrary<'_> for YouTubeVideoId {
     fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        const ALPHABET: &[u8] =
-            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
         let mut bytes = [b'A'; YOUTUBE_VIDEO_ID_LENGTH];
         for byte in &mut bytes {

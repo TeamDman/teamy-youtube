@@ -1,3 +1,4 @@
+use crate::takeout::YouTubeVideoId;
 use arbitrary::Arbitrary;
 use chrono::DateTime;
 use chrono::Local;
@@ -9,8 +10,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Instant;
 use tracing::info;
-
-use crate::takeout::YouTubeVideoId;
 
 // yt[sync.thumbnails.command]
 /// Download thumbnail assets for videos that already have raw fetch data.

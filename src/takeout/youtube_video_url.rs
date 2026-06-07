@@ -110,9 +110,7 @@ fn extract_video_id(url: &reqwest::Url) -> eyre::Result<Option<YouTubeVideoId>> 
 
     match host {
         "youtu.be" => extract_youtu_be_video_id(url),
-        "youtube.com" | "www.youtube.com" | "music.youtube.com" => {
-            extract_watch_video_id(url)
-        }
+        "youtube.com" | "www.youtube.com" | "music.youtube.com" => extract_watch_video_id(url),
         _ => Ok(None),
     }
 }
@@ -171,6 +169,8 @@ mod tests {
 
     #[test]
     fn rejects_playlist_url_without_video_id() {
-        assert!(YouTubeVideoUrl::try_new("https://www.youtube.com/playlist?list=PL1234567890").is_err());
+        assert!(
+            YouTubeVideoUrl::try_new("https://www.youtube.com/playlist?list=PL1234567890").is_err()
+        );
     }
 }

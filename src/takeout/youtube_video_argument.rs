@@ -130,14 +130,19 @@ mod tests {
 
     #[test]
     fn parses_supported_url_argument() {
-        let argument: YouTubeVideoArgument<'static> =
-            "https://www.youtube.com/watch?v=bQVXiDC5w54".parse().unwrap();
+        let argument: YouTubeVideoArgument<'static> = "https://www.youtube.com/watch?v=bQVXiDC5w54"
+            .parse()
+            .unwrap();
 
         assert_eq!(argument.video_id().as_str(), "bQVXiDC5w54");
     }
 
     #[test]
     fn rejects_malformed_argument() {
-        assert!("not a video".parse::<YouTubeVideoArgument<'static>>().is_err());
+        assert!(
+            "not a video"
+                .parse::<YouTubeVideoArgument<'static>>()
+                .is_err()
+        );
     }
 }

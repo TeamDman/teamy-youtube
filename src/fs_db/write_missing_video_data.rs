@@ -1,11 +1,10 @@
+use crate::takeout::YouTubeVideoId;
 use eyre::Context;
 use eyre::eyre;
 use facet_json::RawJson;
 use std::path::Path;
 use std::path::PathBuf;
 use tracing::debug;
-
-use crate::takeout::YouTubeVideoId;
 
 /// Write a negative video-fetch result into the sync database.
 ///

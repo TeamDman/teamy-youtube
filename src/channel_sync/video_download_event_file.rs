@@ -1,6 +1,6 @@
+use crate::takeout::YouTubeVideoId;
+use crate::takeout::YouTubeVideoUrl;
 use facet::Facet;
-
-use crate::takeout::{YouTubeVideoId, YouTubeVideoUrl};
 
 /// Persisted request to download a video into a preferred directory.
 #[derive(Clone, Debug, Eq, Facet, PartialEq)]
@@ -55,7 +55,8 @@ pub struct VideoDownloadFailedEventFile {
 #[cfg(test)]
 mod tests {
     use super::VideoDownloadRequestEventFile;
-    use crate::takeout::{YouTubeVideoId, YouTubeVideoUrl};
+    use crate::takeout::YouTubeVideoId;
+    use crate::takeout::YouTubeVideoUrl;
 
     #[test]
     fn request_event_roundtrips_with_string_json_fields() {
