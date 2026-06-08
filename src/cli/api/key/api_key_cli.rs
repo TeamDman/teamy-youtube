@@ -1,6 +1,6 @@
-use crate::cli::output::CliOutput;
 use crate::cli::api::key::set::ApiKeySetArgs;
 use crate::cli::api::key::validate::ApiKeyValidateArgs;
+use crate::cli::output::CliOutput;
 use arbitrary::Arbitrary;
 use facet::Facet;
 use figue as args;

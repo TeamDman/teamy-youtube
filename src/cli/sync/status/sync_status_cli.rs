@@ -20,33 +20,33 @@ struct SyncStatusMftReport {
 #[derive(Facet, Debug)]
 #[facet(rename_all = "kebab-case")]
 struct SyncStatusFetchReport {
-    candidate_video_count: usize,
-    existing_video_count: usize,
-    missing_video_count: usize,
-    planned_video_count: usize,
+    candidates: usize,
+    existing: usize,
+    missing: usize,
+    planned: usize,
 }
 
 #[derive(Facet, Debug)]
 #[facet(rename_all = "kebab-case")]
 struct SyncStatusThumbnailReport {
-    candidate_video_count: usize,
-    source_video_count: usize,
-    discovered_count: usize,
-    existing_count: usize,
-    unavailable_count: usize,
-    work_item_count: usize,
+    candidate_videos: usize,
+    source_videos: usize,
+    discovered: usize,
+    existing: usize,
+    unavailable: usize,
+    work_items: usize,
 }
 
 #[derive(Facet, Debug)]
 #[facet(rename_all = "kebab-case")]
 struct SyncStatusChannelReport {
-    target_count: usize,
-    discovered_video_count: usize,
-    already_on_disk_count: usize,
-    pending_request_count: usize,
-    blocked_failure_count: usize,
-    new_request_count: usize,
-    download_planned_count: usize,
+    targets: usize,
+    discovered_videos: usize,
+    already_on_disk: usize,
+    pending_requests: usize,
+    blocked_failures: usize,
+    new_requests: usize,
+    downloads_planned: usize,
 }
 
 #[derive(Facet, Debug)]
@@ -84,36 +84,50 @@ impl SyncStatusArgs {
             mft: SyncStatusMftReport {
                 drive_count: mft_status.drives.len(),
                 query_ready_drive_count: mft_status.query_ready_drive_count(),
-                oldest_query_ready_at: teamy_mft::status::format_optional_system_time(
+                oldest_query_ready_at: format_optional_system_time(
                     mft_status.oldest_query_ready_at(),
                 ),
-                oldest_query_ready_age: teamy_mft::status::format_optional_duration(
+                oldest_query_ready_age: format_optional_duration(
                     mft_status.oldest_query_ready_age(SystemTime::now()),
                 ),
             },
             fetch: SyncStatusFetchReport {
-                candidate_video_count: fetch_summary.candidate_videos,
-                existing_video_count: fetch_summary.existing_fetches,
-                missing_video_count: fetch_summary.missing_fetches,
-                planned_video_count: fetch_summary.planned_fetches,
+                candidates: fetch_summary.candidate_videos,
+                existing: fetch_summary.existing_fetches,
+                missing: fetch_summary.missing_fetches,
+                planned: fetch_summary.planned_fetches,
             },
             thumbnails: SyncStatusThumbnailReport {
-                candidate_video_count: thumbnail_summary.candidate_videos,
-                source_video_count: thumbnail_summary.source_videos,
-                discovered_count: thumbnail_summary.discovered,
-                existing_count: thumbnail_summary.existing,
-                unavailable_count: thumbnail_summary.unavailable,
-                work_item_count: thumbnail_summary.work_items,
+                candidate_videos: thumbnail_summary.candidate_videos,
+                source_videos: thumbnail_summary.source_videos,
+                discovered: thumbnail_summary.discovered,
+                existing: thumbnail_summary.existing,
+                unavailable: thumbnail_summary.unavailable,
+                work_items: thumbnail_summary.work_items,
             },
             channel: SyncStatusChannelReport {
-                target_count: channel_plan.summary.target_count,
-                discovered_video_count: channel_plan.summary.discovered_video_count,
-                already_on_disk_count: channel_plan.summary.already_on_disk_count,
-                pending_request_count: channel_plan.summary.pending_request_count,
-                blocked_failure_count: channel_plan.summary.blocked_failure_count,
-                new_request_count: channel_plan.summary.new_request_count,
-                download_planned_count: channel_plan.summary.download_planned_count,
+                targets: channel_plan.summary.target_count,
+                discovered_videos: channel_plan.summary.discovered_video_count,
+                already_on_disk: channel_plan.summary.already_on_disk_count,
+                pending_requests: channel_plan.summary.pending_request_count,
+                blocked_failures: channel_plan.summary.blocked_failure_count,
+                new_requests: channel_plan.summary.new_request_count,
+                downloads_planned: channel_plan.summary.download_planned_count,
             },
         }))
     }
+}
+
+fn format_optional_system_time(value: Option<SystemTime>) -> String {
+    value.map_or_else(
+        || "none".to_owned(),
+        |inner| chrono::DateTime::<chrono::Utc>::from(inner).to_rfc3339(),
+    )
+}
+
+fn format_optional_duration(value: Option<Duration>) -> String {
+    value.map_or_else(
+        || "none".to_owned(),
+        |inner| humantime::format_duration(inner).to_string(),
+    )
 }

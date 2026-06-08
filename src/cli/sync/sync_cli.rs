@@ -1,12 +1,12 @@
 use crate::cli::output::CliOutput;
 use crate::cli::sync::channel::SyncChannelArgs;
 use crate::cli::sync::dir::SyncDirArgs;
-use crate::cli::sync::run::fetch_videos::SyncRunFetchVideosReport;
-use crate::cli::sync::run::takeout::SyncRunTakeoutReport;
-use crate::cli::sync::run::thumbnails::SyncRunThumbnailsReport;
 use crate::cli::sync::run::fetch_videos::SyncRunFetchVideosArgs;
+use crate::cli::sync::run::fetch_videos::SyncRunFetchVideosReport;
 use crate::cli::sync::run::takeout::SyncRunTakeoutArgs;
+use crate::cli::sync::run::takeout::SyncRunTakeoutReport;
 use crate::cli::sync::run::thumbnails::SyncRunThumbnailsArgs;
+use crate::cli::sync::run::thumbnails::SyncRunThumbnailsReport;
 use crate::cli::sync::status::SyncStatusArgs;
 use arbitrary::Arbitrary;
 use facet::Facet;

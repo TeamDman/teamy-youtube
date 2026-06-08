@@ -14,6 +14,7 @@ pub struct FetchVideoArgs {
 
 #[derive(Facet, Debug)]
 #[facet(rename_all = "kebab-case")]
+#[repr(u8)]
 enum FetchVideoResultKind {
     Found,
     Missing,

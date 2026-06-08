@@ -1,5 +1,5 @@
-use crate::cli::output::CliOutput;
 use crate::cli::fetch::video::FetchVideoArgs;
+use crate::cli::output::CliOutput;
 use arbitrary::Arbitrary;
 use facet::Facet;
 use figue as args;

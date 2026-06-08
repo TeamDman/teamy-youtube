@@ -2,8 +2,7 @@ use crate::takeout::raw_watch_history_subtitle::RawWatchHistorySubtitle;
 use facet::Facet;
 
 /// Raw entry shape from Google Takeout watch-history JSON.
-#[derive(Debug, Facet, PartialEq)]
-#[facet(derive(Default))]
+#[derive(Debug, Default, Facet, PartialEq)]
 pub struct RawWatchHistoryEntry {
     #[facet(default)]
     pub header: Option<String>,

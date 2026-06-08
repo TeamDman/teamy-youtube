@@ -29,13 +29,13 @@ pub enum SyncChannelCommand {
 #[derive(Facet, Debug)]
 #[facet(rename_all = "kebab-case")]
 struct SyncChannelSummaryReport {
-    target_count: usize,
-    discovered_video_count: usize,
-    already_on_disk_count: usize,
-    pending_request_count: usize,
-    blocked_failure_count: usize,
-    new_request_count: usize,
-    download_planned_count: usize,
+    targets: usize,
+    discovered_videos: usize,
+    already_on_disk: usize,
+    pending_requests: usize,
+    blocked_failures: usize,
+    new_requests: usize,
+    downloads_planned: usize,
 }
 
 #[derive(Facet, Debug)]
@@ -64,7 +64,9 @@ impl SyncChannelArgs {
                 }
                 args.invoke().await
             }
-            None => Ok(CliOutput::facet(run_channel_sync(mft_max_age, dry_run).await?)),
+            None => Ok(CliOutput::facet(
+                run_channel_sync(mft_max_age, dry_run).await?,
+            )),
         }
     }
 }
@@ -117,13 +119,13 @@ fn build_channel_sync_report(
         sync_dir: sync_dir.display().to_string(),
         dry_run,
         summary: SyncChannelSummaryReport {
-            target_count: plan_summary.target_count,
-            discovered_video_count: plan_summary.discovered_video_count,
-            already_on_disk_count: plan_summary.already_on_disk_count,
-            pending_request_count: plan_summary.pending_request_count,
-            blocked_failure_count: plan_summary.blocked_failure_count,
-            new_request_count: plan_summary.new_request_count,
-            download_planned_count: plan_summary.download_planned_count,
+            targets: plan_summary.target_count,
+            discovered_videos: plan_summary.discovered_video_count,
+            already_on_disk: plan_summary.already_on_disk_count,
+            pending_requests: plan_summary.pending_request_count,
+            blocked_failures: plan_summary.blocked_failure_count,
+            new_requests: plan_summary.new_request_count,
+            downloads_planned: plan_summary.download_planned_count,
         },
         downloaded_count,
         failed_count,
