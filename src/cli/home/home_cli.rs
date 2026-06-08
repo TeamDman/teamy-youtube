@@ -1,5 +1,6 @@
 use crate::cli::home::open::HomeOpenArgs;
 use crate::cli::home::show::HomeShowArgs;
+use crate::cli::output::CliOutput;
 use arbitrary::Arbitrary;
 use facet::Facet;
 use figue as args;
@@ -26,7 +27,7 @@ impl HomeArgs {
     /// # Errors
     ///
     /// This function will return an error if the selected subcommand fails.
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         match self.command {
             HomeCommand::Open(args) => args.invoke().await,
             HomeCommand::Show(args) => args.invoke().await,

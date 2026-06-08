@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use crate::takeout::YouTubeVideoId;
 use arbitrary::Arbitrary;
 use chrono::DateTime;
@@ -103,13 +104,41 @@ struct ThumbnailInspectionContext<'a> {
     thumbnail_index: &'a crate::fs_db::VideoThumbnailIndex,
 }
 
+#[derive(Facet, Debug)]
+#[facet(rename_all = "kebab-case")]
+pub(crate) struct SyncRunThumbnailsReport {
+    sync_dir: String,
+    candidate_video_count: usize,
+    thumbnail_planned_video_count: usize,
+    thumbnail_work_item_count: usize,
+    thumbnail_fetch_source_video_count: usize,
+    thumbnail_discovered_count: usize,
+    thumbnail_existing_count: usize,
+    thumbnail_unavailable_count: usize,
+    thumbnail_refresh_eligible_count: usize,
+    thumbnail_unchanged_count: usize,
+    thumbnail_downloaded_count: usize,
+    thumbnail_limit: String,
+    thumbnail_skipped_due_to_limit_count: usize,
+    refresh_videos_newer_than: String,
+    refresh_thumbnails_older_than: String,
+}
+
 impl SyncRunThumbnailsArgs {
     // yt[sync.thumbnails.latest-fetch]
     /// # Errors
     ///
     /// This function will return an error if the sync dir is unset, raw fetch data cannot be
     /// read, thumbnail URLs cannot be parsed, or thumbnail files cannot be downloaded or written.
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
+        Ok(CliOutput::facet(self.run().await?))
+    }
+
+    /// # Errors
+    ///
+    /// This function will return an error if the sync dir is unset, raw fetch data cannot be
+    /// read, thumbnail URLs cannot be parsed, or thumbnail files cannot be downloaded or written.
+    pub(crate) async fn run(self) -> eyre::Result<SyncRunThumbnailsReport> {
         let limit = self.limit;
         let refresh_videos_newer_than = self.refresh_videos_newer_than.clone();
         let refresh_thumbnails_older_than = self.refresh_thumbnails_older_than.clone();
@@ -161,40 +190,27 @@ impl SyncRunThumbnailsArgs {
             progress.emit_log("sync thumbnails progress", started_at.elapsed());
         }
 
-        println!("sync-dir={}", sync_dir.display());
-        println!("candidate-video-count={}", plan.candidate_video_count);
-        println!(
-            "thumbnail-planned-video-count={}",
-            plan.inspected_video_count
-        );
-        println!("thumbnail-work-item-count={}", plan.work_items.len());
-        println!(
-            "thumbnail-fetch-source-video-count={}",
-            counts.source_videos
-        );
-        println!("thumbnail-discovered-count={}", counts.discovered);
-        println!("thumbnail-existing-count={}", counts.existing);
-        println!("thumbnail-unavailable-count={}", counts.unavailable);
-        println!(
-            "thumbnail-refresh-eligible-count={}",
-            counts.refresh_eligible
-        );
-        println!("thumbnail-unchanged-count={}", counts.unchanged);
-        println!("thumbnail-downloaded-count={}", counts.downloaded);
-        println!("thumbnail-limit={}", format_optional_limit(limit));
-        println!(
-            "thumbnail-skipped-due-to-limit-count={}",
-            plan.skipped_due_to_limit_count
-        );
-        println!(
-            "refresh-videos-newer-than={}",
-            format_optional_age(refresh_videos_newer_than.as_deref())
-        );
-        println!(
-            "refresh-thumbnails-older-than={}",
-            format_optional_age(refresh_thumbnails_older_than.as_deref())
-        );
-        Ok(())
+        Ok(SyncRunThumbnailsReport {
+            sync_dir: sync_dir.display().to_string(),
+            candidate_video_count: plan.candidate_video_count,
+            thumbnail_planned_video_count: plan.inspected_video_count,
+            thumbnail_work_item_count: plan.work_items.len(),
+            thumbnail_fetch_source_video_count: counts.source_videos,
+            thumbnail_discovered_count: counts.discovered,
+            thumbnail_existing_count: counts.existing,
+            thumbnail_unavailable_count: counts.unavailable,
+            thumbnail_refresh_eligible_count: counts.refresh_eligible,
+            thumbnail_unchanged_count: counts.unchanged,
+            thumbnail_downloaded_count: counts.downloaded,
+            thumbnail_limit: format_optional_limit(limit),
+            thumbnail_skipped_due_to_limit_count: plan.skipped_due_to_limit_count,
+            refresh_videos_newer_than: format_optional_age(refresh_videos_newer_than.as_deref())
+                .to_owned(),
+            refresh_thumbnails_older_than: format_optional_age(
+                refresh_thumbnails_older_than.as_deref(),
+            )
+            .to_owned(),
+        })
     }
 }
 

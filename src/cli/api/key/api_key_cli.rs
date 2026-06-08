@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use crate::cli::api::key::set::ApiKeySetArgs;
 use crate::cli::api::key::validate::ApiKeyValidateArgs;
 use arbitrary::Arbitrary;
@@ -26,7 +27,7 @@ impl ApiKeyArgs {
     /// # Errors
     ///
     /// This function will return an error if the selected subcommand fails.
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         match self.command {
             ApiKeyCommand::Set(args) => args.invoke().await,
             ApiKeyCommand::Validate(args) => args.invoke().await,

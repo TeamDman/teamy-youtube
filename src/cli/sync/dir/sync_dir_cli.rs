@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use crate::cli::sync::dir::open::SyncDirOpenArgs;
 use crate::cli::sync::dir::set::SyncDirSetArgs;
 use crate::cli::sync::dir::show::SyncDirShowArgs;
@@ -29,7 +30,7 @@ impl SyncDirArgs {
     /// # Errors
     ///
     /// This function will return an error if the selected subcommand fails.
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         match self.command {
             SyncDirCommand::Open(args) => args.invoke().await,
             SyncDirCommand::Set(args) => args.invoke().await,

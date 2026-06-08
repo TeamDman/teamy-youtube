@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use arbitrary::Arbitrary;
 use facet::Facet;
 use figue as args;
@@ -11,12 +12,18 @@ pub struct SyncDirSetArgs {
     pub path: String,
 }
 
+#[derive(Facet, Debug)]
+#[facet(rename_all = "kebab-case")]
+struct SyncDirSetReport {
+    sync_dir: String,
+}
+
 impl SyncDirSetArgs {
     /// # Errors
     ///
     /// This function will return an error if the path cannot be normalized or persisted.
     #[expect(clippy::unused_async)]
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         let expanded = expand_user_home(&self.path)?;
         let sync_dir = if expanded.is_absolute() {
             expanded
@@ -27,8 +34,9 @@ impl SyncDirSetArgs {
         std::fs::create_dir_all(&sync_dir)?;
         let sync_dir = dunce::canonicalize(&sync_dir)?;
         crate::paths::set_sync_dir(&sync_dir)?;
-        println!("{}", sync_dir.display());
-        Ok(())
+        Ok(CliOutput::facet(SyncDirSetReport {
+            sync_dir: sync_dir.display().to_string(),
+        }))
     }
 }
 

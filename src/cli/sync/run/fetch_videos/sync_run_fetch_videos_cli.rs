@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use arbitrary::Arbitrary;
 use chrono::Local;
 use facet::Facet;
@@ -40,12 +41,35 @@ struct FetchVideoRunCounts {
     unavailable: usize,
 }
 
+#[derive(Facet, Debug)]
+#[facet(rename_all = "kebab-case")]
+pub(crate) struct SyncRunFetchVideosReport {
+    sync_dir: String,
+    candidate_video_count: usize,
+    existing_fetch_video_count: usize,
+    missing_fetch_video_count: usize,
+    fetch_planned_video_count: usize,
+    fetch_completed_video_count: usize,
+    fetch_missing_result_count: usize,
+    fetch_unavailable_result_count: usize,
+    fetch_limit: String,
+    fetch_skipped_due_to_limit_count: usize,
+}
+
 impl SyncRunFetchVideosArgs {
     /// # Errors
     ///
     /// This function will return an error if the sync dir is unset, the API key is unavailable,
     /// video discovery fails, the API request fails, or fetched files cannot be written.
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
+        Ok(CliOutput::facet(self.run().await?))
+    }
+
+    /// # Errors
+    ///
+    /// This function will return an error if the sync dir is unset, the API key is unavailable,
+    /// video discovery fails, the API request fails, or fetched files cannot be written.
+    pub(crate) async fn run(self) -> eyre::Result<SyncRunFetchVideosReport> {
         let sync_dir = crate::paths::try_get_sync_dir()?;
         let api_key = crate::paths::try_get_youtube_api_key()?;
         let plan = build_fetch_video_plan(&sync_dir, self.fetch_limit)?;
@@ -62,8 +86,12 @@ impl SyncRunFetchVideosArgs {
         )
         .await?;
 
-        print_fetch_video_summary(&sync_dir, &plan, self.fetch_limit, &counts);
-        Ok(())
+        Ok(build_fetch_video_summary(
+            &sync_dir,
+            &plan,
+            self.fetch_limit,
+            &counts,
+        ))
     }
 }
 
@@ -226,31 +254,24 @@ async fn process_single_video_fetch(
     Ok(())
 }
 
-fn print_fetch_video_summary(
+fn build_fetch_video_summary(
     sync_dir: &Path,
     plan: &FetchVideoPlan,
     fetch_limit: Option<usize>,
     counts: &FetchVideoRunCounts,
-) {
-    println!("sync-dir={}", sync_dir.display());
-    println!(
-        "candidate-video-count={}",
-        plan.existing_fetch_count + plan.total_missing_video_count
-    );
-    println!("existing-fetch-video-count={}", plan.existing_fetch_count);
-    println!(
-        "missing-fetch-video-count={}",
-        plan.total_missing_video_count
-    );
-    println!("fetch-planned-video-count={}", plan.missing_video_ids.len());
-    println!("fetch-completed-video-count={}", counts.fetched);
-    println!("fetch-missing-result-count={}", counts.missing);
-    println!("fetch-unavailable-result-count={}", counts.unavailable);
-    println!("fetch-limit={}", format_optional_limit(fetch_limit));
-    println!(
-        "fetch-skipped-due-to-limit-count={}",
-        plan.skipped_due_to_limit_count
-    );
+) -> SyncRunFetchVideosReport {
+    SyncRunFetchVideosReport {
+        sync_dir: sync_dir.display().to_string(),
+        candidate_video_count: plan.existing_fetch_count + plan.total_missing_video_count,
+        existing_fetch_video_count: plan.existing_fetch_count,
+        missing_fetch_video_count: plan.total_missing_video_count,
+        fetch_planned_video_count: plan.missing_video_ids.len(),
+        fetch_completed_video_count: counts.fetched,
+        fetch_missing_result_count: counts.missing,
+        fetch_unavailable_result_count: counts.unavailable,
+        fetch_limit: format_optional_limit(fetch_limit),
+        fetch_skipped_due_to_limit_count: plan.skipped_due_to_limit_count,
+    }
 }
 
 fn format_optional_limit(value: Option<usize>) -> String {

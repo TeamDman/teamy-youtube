@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use arbitrary::Arbitrary;
 use facet::Facet;
 use figue as args;
@@ -15,12 +16,23 @@ pub struct SyncChannelAddArgs {
     pub preferred_download_dir: String,
 }
 
+#[derive(Facet, Debug)]
+#[facet(rename_all = "kebab-case")]
+struct SyncChannelAddReport {
+    sync_dir: String,
+    channel_id: String,
+    channel_name: String,
+    channel_source_url: String,
+    preferred_download_dir: String,
+    channel_target_file: String,
+}
+
 impl SyncChannelAddArgs {
     /// # Errors
     ///
     /// This function will return an error if the sync dir is unset, the preferred directory
     /// cannot be resolved, or yt-dlp cannot resolve the channel metadata.
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         let sync_dir = crate::paths::try_get_sync_dir()?;
         let preferred_download_dir = resolve_download_dir(&self.preferred_download_dir)?;
         std::fs::create_dir_all(&preferred_download_dir)?;
@@ -33,16 +45,14 @@ impl SyncChannelAddArgs {
         )
         .await?;
 
-        println!("sync-dir={}", sync_dir.display());
-        println!("channel-id={}", added.target.channel_id);
-        println!("channel-name={}", added.target.channel_name);
-        println!("channel-source-url={}", added.target.source_url);
-        println!(
-            "preferred-download-dir={}",
-            added.target.preferred_download_dir
-        );
-        println!("channel-target-file={}", added.target_path.display());
-        Ok(())
+        Ok(CliOutput::facet(SyncChannelAddReport {
+            sync_dir: sync_dir.display().to_string(),
+            channel_id: added.target.channel_id,
+            channel_name: added.target.channel_name,
+            channel_source_url: added.target.source_url,
+            preferred_download_dir: added.target.preferred_download_dir,
+            channel_target_file: added.target_path.display().to_string(),
+        }))
     }
 }
 

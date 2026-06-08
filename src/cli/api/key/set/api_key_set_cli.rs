@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use arbitrary::Arbitrary;
 use facet::Facet;
 use figue as args;
@@ -10,17 +11,21 @@ pub struct ApiKeySetArgs {
     pub value: String,
 }
 
+#[derive(Facet, Debug)]
+#[facet(rename_all = "kebab-case")]
+struct ApiKeySetReport {
+    persisted_path: String,
+}
+
 impl ApiKeySetArgs {
     /// # Errors
     ///
     /// This function will return an error if the API key cannot be persisted.
     #[expect(clippy::unused_async)]
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         let persisted_path = crate::paths::set_youtube_api_key(&self.value)?;
-        println!(
-            "Persisted the provided YouTube API key to {}",
-            persisted_path.display()
-        );
-        Ok(())
+        Ok(CliOutput::facet(ApiKeySetReport {
+            persisted_path: persisted_path.display().to_string(),
+        }))
     }
 }

@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use arbitrary::Arbitrary;
 use eyre::WrapErr as _;
 use facet::Facet;
@@ -6,13 +7,20 @@ use facet::Facet;
 #[derive(Facet, Arbitrary, Debug, PartialEq)]
 pub struct CacheOpenArgs;
 
+#[derive(Facet, Debug)]
+#[facet(rename_all = "kebab-case")]
+struct CacheOpenReport {
+    cache_dir: String,
+    opened: bool,
+}
+
 impl CacheOpenArgs {
     /// # Errors
     ///
     /// This function will return an error if the cache directory cannot be created
     /// or the file manager cannot be launched.
     #[expect(clippy::unused_async)]
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         std::fs::create_dir_all(crate::paths::CACHE_DIR.0.as_path())?;
         open::that_detached(crate::paths::CACHE_DIR.0.as_path()).wrap_err_with(|| {
             format!(
@@ -20,6 +28,9 @@ impl CacheOpenArgs {
                 crate::paths::CACHE_DIR.0.display()
             )
         })?;
-        Ok(())
+        Ok(CliOutput::facet(CacheOpenReport {
+            cache_dir: crate::paths::CACHE_DIR.display().to_string(),
+            opened: true,
+        }))
     }
 }

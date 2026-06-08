@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use crate::cli::fetch::video::FetchVideoArgs;
 use arbitrary::Arbitrary;
 use facet::Facet;
@@ -23,7 +24,7 @@ impl FetchArgs {
     /// # Errors
     ///
     /// This function will return an error if the selected subcommand fails.
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         match self.command {
             FetchCommand::Video(args) => args.invoke().await,
         }

@@ -1,5 +1,9 @@
+use crate::cli::output::CliOutput;
 use crate::cli::sync::channel::SyncChannelArgs;
 use crate::cli::sync::dir::SyncDirArgs;
+use crate::cli::sync::run::fetch_videos::SyncRunFetchVideosReport;
+use crate::cli::sync::run::takeout::SyncRunTakeoutReport;
+use crate::cli::sync::run::thumbnails::SyncRunThumbnailsReport;
 use crate::cli::sync::run::fetch_videos::SyncRunFetchVideosArgs;
 use crate::cli::sync::run::takeout::SyncRunTakeoutArgs;
 use crate::cli::sync::run::thumbnails::SyncRunThumbnailsArgs;
@@ -46,11 +50,19 @@ pub enum SyncCommand {
     Thumbnails(SyncRunThumbnailsArgs),
 }
 
+#[derive(Facet, Debug)]
+#[facet(rename_all = "kebab-case")]
+struct SyncAllStagesReport {
+    takeout: SyncRunTakeoutReport,
+    videos: SyncRunFetchVideosReport,
+    thumbnails: SyncRunThumbnailsReport,
+}
+
 impl SyncArgs {
     /// # Errors
     ///
     /// This function will return an error if the selected subcommand fails.
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         let mft_max_age = parse_optional_mft_age_argument(self.bail_if_mft_older_than.as_deref())?;
         match self.command {
             Some(SyncCommand::Channel(args)) => args.invoke(mft_max_age).await,
@@ -59,34 +71,35 @@ impl SyncArgs {
             Some(SyncCommand::Takeout(args)) => args.invoke_with_mft_max_age(mft_max_age).await,
             Some(SyncCommand::Videos(args)) => args.invoke().await,
             Some(SyncCommand::Thumbnails(args)) => args.invoke().await,
-            None => run_all_sync_stages(mft_max_age).await,
+            None => Ok(CliOutput::facet(run_all_sync_stages(mft_max_age).await?)),
         }
     }
 }
 
 // yt[sync.all.command]
-async fn run_all_sync_stages(mft_max_age: Option<Duration>) -> eyre::Result<()> {
-    println!("sync-stage=takeout");
-    SyncRunTakeoutArgs {
+async fn run_all_sync_stages(mft_max_age: Option<Duration>) -> eyre::Result<SyncAllStagesReport> {
+    let takeout = SyncRunTakeoutArgs {
         dry_run: false,
         input_dir: None,
     }
-    .invoke_with_mft_max_age(mft_max_age)
+    .run_with_mft_max_age(mft_max_age)
     .await?;
 
-    println!("sync-stage=videos");
-    SyncRunFetchVideosArgs { fetch_limit: None }
-        .invoke()
-        .await?;
+    let videos = SyncRunFetchVideosArgs { fetch_limit: None }.run().await?;
 
-    println!("sync-stage=thumbnails");
-    SyncRunThumbnailsArgs {
+    let thumbnails = SyncRunThumbnailsArgs {
         limit: None,
         refresh_videos_newer_than: None,
         refresh_thumbnails_older_than: None,
     }
-    .invoke()
-    .await
+    .run()
+    .await?;
+
+    Ok(SyncAllStagesReport {
+        takeout,
+        videos,
+        thumbnails,
+    })
 }
 
 pub(crate) fn assert_teamy_mft_query_cache_fresh(max_age: Option<Duration>) -> eyre::Result<()> {

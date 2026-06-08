@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use arbitrary::Arbitrary;
 use chrono::Local;
 use facet::Facet;
@@ -23,20 +24,57 @@ pub struct SyncRunTakeoutArgs {
     pub input_dir: Option<String>,
 }
 
+#[derive(Facet, Debug)]
+#[facet(rename_all = "kebab-case")]
+pub(crate) struct SyncRunTakeoutReport {
+    source: String,
+    sync_dir: String,
+    dry_run: bool,
+    watch_history_json: String,
+    playlist_csv_count: usize,
+    playlist_count: usize,
+    playlist_entry_count: usize,
+    playlist_unique_video_ids: usize,
+    watch_history_entry_count: usize,
+    watch_history_unique_video_ids: usize,
+    watch_history_skipped_entry_count: usize,
+    sync_unique_video_count: usize,
+    sync_unique_playlist_count: usize,
+    sync_playlist_event_count: usize,
+    sync_watch_event_count: usize,
+    sync_written_event_file_count: usize,
+    sync_existing_event_file_count: usize,
+    preview_lines: Vec<String>,
+}
+
 impl SyncRunTakeoutArgs {
     /// # Errors
     ///
     /// This function will return an error if the sync dir is unset, discovery fails,
     /// the takeout inputs cannot be read, or the sync database cannot be written.
-    pub async fn invoke(self) -> eyre::Result<()> {
-        self.invoke_with_mft_max_age(None).await
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
+        Ok(CliOutput::facet(self.run_with_mft_max_age(None).await?))
+    }
+
+    /// # Errors
+    ///
+    /// This function will return an error if the sync dir is unset, discovery fails,
+    /// the takeout inputs cannot be read, or the sync database cannot be written.
+    pub async fn invoke_with_mft_max_age(
+        self,
+        mft_max_age: Option<Duration>,
+    ) -> eyre::Result<CliOutput> {
+        Ok(CliOutput::facet(self.run_with_mft_max_age(mft_max_age).await?))
     }
 
     /// # Errors
     ///
     /// This function will return an error if the sync dir is unset, discovery fails,
     /// the takeout inputs cannot be read, the teamy-mft cache is too old, or the sync database cannot be written.
-    pub async fn invoke_with_mft_max_age(self, mft_max_age: Option<Duration>) -> eyre::Result<()> {
+    pub(crate) async fn run_with_mft_max_age(
+        self,
+        mft_max_age: Option<Duration>,
+    ) -> eyre::Result<SyncRunTakeoutReport> {
         let sync_dir = crate::paths::try_get_sync_dir()?;
         let discovered_inputs = discover_inputs(self.input_dir, mft_max_age)?;
 
@@ -63,25 +101,25 @@ impl SyncRunTakeoutArgs {
         )
         .await?;
 
-        print_sync_summary(
+        let preview_lines = if self.dry_run {
+            build_dry_run_preview_lines(
+                &sync_dir,
+                &playlist_entries,
+                &watch_history_report.entries,
+            )
+        } else {
+            Vec::new()
+        };
+
+        Ok(build_sync_summary_report(
             &sync_dir,
             self.dry_run,
             &discovered_inputs,
             &playlist_entries,
             &watch_history_report,
             &sync_summary,
-        );
-        if self.dry_run {
-            for line in build_dry_run_preview_lines(
-                &sync_dir,
-                &playlist_entries,
-                &watch_history_report.entries,
-            ) {
-                println!("{line}");
-            }
-        }
-
-        Ok(())
+            preview_lines,
+        ))
     }
 }
 
@@ -126,14 +164,15 @@ async fn load_playlist_entries(
     Ok(playlist_entries)
 }
 
-fn print_sync_summary(
+fn build_sync_summary_report(
     sync_dir: &Path,
     dry_run: bool,
     discovered_inputs: &DiscoveredInputs,
     playlist_entries: &[crate::takeout::PlaylistVideoEntry],
     watch_history_report: &crate::takeout::WatchHistoryReport,
     sync_summary: &crate::fs_db::SyncDatabaseSummary,
-) {
+    preview_lines: Vec<String>,
+) -> SyncRunTakeoutReport {
     let unique_playlist_names = playlist_entries
         .iter()
         .map(|entry| entry.playlist_name.clone())
@@ -151,50 +190,26 @@ fn print_sync_summary(
         .collect::<BTreeSet<_>>()
         .len();
 
-    println!("source={}", discovered_inputs.source_label);
-    println!("sync-dir={}", sync_dir.display());
-    println!("dry-run={dry_run}");
-    println!(
-        "watch-history-json={}",
-        discovered_inputs.watch_history_json.display()
-    );
-    println!(
-        "playlist-csv-count={}",
-        discovered_inputs.playlist_csvs.len()
-    );
-    println!("playlist-count={unique_playlist_names}");
-    println!("playlist-entry-count={}", playlist_entries.len());
-    println!("playlist-unique-video-ids={unique_playlist_video_ids}");
-    println!(
-        "watch-history-entry-count={}",
-        watch_history_report.entries.len()
-    );
-    println!("watch-history-unique-video-ids={unique_watch_history_video_ids}");
-    println!(
-        "watch-history-skipped-entry-count={}",
-        watch_history_report.skipped_entry_count
-    );
-    println!(
-        "sync-unique-video-count={}",
-        sync_summary.unique_video_count
-    );
-    println!(
-        "sync-unique-playlist-count={}",
-        sync_summary.unique_playlist_count
-    );
-    println!(
-        "sync-playlist-event-count={}",
-        sync_summary.playlist_event_count
-    );
-    println!("sync-watch-event-count={}", sync_summary.watch_event_count);
-    println!(
-        "sync-written-event-file-count={}",
-        sync_summary.written_event_file_count
-    );
-    println!(
-        "sync-existing-event-file-count={}",
-        sync_summary.existing_event_file_count
-    );
+    SyncRunTakeoutReport {
+        source: discovered_inputs.source_label.clone(),
+        sync_dir: sync_dir.display().to_string(),
+        dry_run,
+        watch_history_json: discovered_inputs.watch_history_json.display().to_string(),
+        playlist_csv_count: discovered_inputs.playlist_csvs.len(),
+        playlist_count: unique_playlist_names,
+        playlist_entry_count: playlist_entries.len(),
+        playlist_unique_video_ids: unique_playlist_video_ids,
+        watch_history_entry_count: watch_history_report.entries.len(),
+        watch_history_unique_video_ids: unique_watch_history_video_ids,
+        watch_history_skipped_entry_count: watch_history_report.skipped_entry_count,
+        sync_unique_video_count: sync_summary.unique_video_count,
+        sync_unique_playlist_count: sync_summary.unique_playlist_count,
+        sync_playlist_event_count: sync_summary.playlist_event_count,
+        sync_watch_event_count: sync_summary.watch_event_count,
+        sync_written_event_file_count: sync_summary.written_event_file_count,
+        sync_existing_event_file_count: sync_summary.existing_event_file_count,
+        preview_lines,
+    }
 }
 
 fn build_dry_run_preview_lines(

@@ -1,3 +1,4 @@
+use crate::cli::output::CliOutput;
 use crate::cli::api::key::ApiKeyArgs;
 use arbitrary::Arbitrary;
 use facet::Facet;
@@ -23,7 +24,7 @@ impl ApiArgs {
     /// # Errors
     ///
     /// This function will return an error if the selected subcommand fails.
-    pub async fn invoke(self) -> eyre::Result<()> {
+    pub async fn invoke(self) -> eyre::Result<CliOutput> {
         match self.command {
             ApiCommand::Key(args) => args.invoke().await,
         }
