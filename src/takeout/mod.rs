@@ -1,6 +1,6 @@
 mod playlist_video_entry;
-mod raw_watch_history_entry;
-mod raw_watch_history_subtitle;
+pub(crate) mod raw_watch_history_entry;
+pub(crate) mod raw_watch_history_subtitle;
 mod watch_history_entry;
 mod youtube_video_argument;
 mod youtube_video_id;

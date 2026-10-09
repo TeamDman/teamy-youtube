@@ -19,8 +19,15 @@ impl CacheCleanArgs {
     #[expect(clippy::unused_async)]
     pub async fn invoke(self) -> eyre::Result<CliOutput> {
         let result = crate::paths::clean_cache()?;
-        Ok(CliOutput::facet(CacheCleanReport {
-            removed_cache_entries: result.entries_removed,
-        }))
+        Ok(CliOutput::facet(
+            CacheCleanReport {
+                removed_cache_entries: result.entries_removed,
+            },
+            Some(crate::elapsed_duration::budget(
+                1000,
+                result.entries_removed,
+                250,
+            )),
+        ))
     }
 }

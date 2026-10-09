@@ -71,7 +71,16 @@ impl SyncArgs {
             Some(SyncCommand::Takeout(args)) => args.invoke_with_mft_max_age(mft_max_age).await,
             Some(SyncCommand::Videos(args)) => args.invoke().await,
             Some(SyncCommand::Thumbnails(args)) => args.invoke().await,
-            None => Ok(CliOutput::facet(run_all_sync_stages(mft_max_age).await?)),
+            None => {
+                let report = run_all_sync_stages(mft_max_age).await?;
+                // Add each stage's expected inventory/request budget, preserving its work model.
+                let budget = report
+                    .takeout
+                    .completion_budget()
+                    .saturating_add(report.videos.completion_budget())
+                    .saturating_add(report.thumbnails.completion_budget());
+                Ok(CliOutput::facet(report, Some(budget)))
+            }
         }
     }
 }

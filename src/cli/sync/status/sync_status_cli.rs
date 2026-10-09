@@ -79,42 +79,52 @@ impl SyncStatusArgs {
         )
         .await?;
 
-        Ok(CliOutput::facet(SyncStatusReport {
-            sync_dir: sync_dir.display().to_string(),
-            mft: SyncStatusMftReport {
-                drive_count: mft_status.drives.len(),
-                query_ready_drive_count: mft_status.query_ready_drive_count(),
-                oldest_query_ready_at: format_optional_system_time(
-                    mft_status.oldest_query_ready_at(),
-                ),
-                oldest_query_ready_age: format_optional_duration(
-                    mft_status.oldest_query_ready_age(SystemTime::now()),
-                ),
+        Ok(CliOutput::facet(
+            SyncStatusReport {
+                sync_dir: sync_dir.display().to_string(),
+                mft: SyncStatusMftReport {
+                    drive_count: mft_status.drives.len(),
+                    query_ready_drive_count: mft_status.query_ready_drive_count(),
+                    oldest_query_ready_at: format_optional_system_time(
+                        mft_status.oldest_query_ready_at(),
+                    ),
+                    oldest_query_ready_age: format_optional_duration(
+                        mft_status.oldest_query_ready_age(SystemTime::now()),
+                    ),
+                },
+                fetch: SyncStatusFetchReport {
+                    candidates: fetch_summary.candidate_videos,
+                    existing: fetch_summary.existing_fetches,
+                    missing: fetch_summary.missing_fetches,
+                    planned: fetch_summary.planned_fetches,
+                },
+                thumbnails: SyncStatusThumbnailReport {
+                    candidate_videos: thumbnail_summary.candidate_videos,
+                    source_videos: thumbnail_summary.source_videos,
+                    discovered: thumbnail_summary.discovered,
+                    existing: thumbnail_summary.existing,
+                    unavailable: thumbnail_summary.unavailable,
+                    work_items: thumbnail_summary.work_items,
+                },
+                channel: SyncStatusChannelReport {
+                    targets: channel_plan.summary.target_count,
+                    discovered_videos: channel_plan.summary.discovered_video_count,
+                    already_on_disk: channel_plan.summary.already_on_disk_count,
+                    pending_requests: channel_plan.summary.pending_request_count,
+                    blocked_failures: channel_plan.summary.blocked_failure_count,
+                    new_requests: channel_plan.summary.new_request_count,
+                    downloads_planned: channel_plan.summary.download_planned_count,
+                },
             },
-            fetch: SyncStatusFetchReport {
-                candidates: fetch_summary.candidate_videos,
-                existing: fetch_summary.existing_fetches,
-                missing: fetch_summary.missing_fetches,
-                planned: fetch_summary.planned_fetches,
-            },
-            thumbnails: SyncStatusThumbnailReport {
-                candidate_videos: thumbnail_summary.candidate_videos,
-                source_videos: thumbnail_summary.source_videos,
-                discovered: thumbnail_summary.discovered,
-                existing: thumbnail_summary.existing,
-                unavailable: thumbnail_summary.unavailable,
-                work_items: thumbnail_summary.work_items,
-            },
-            channel: SyncStatusChannelReport {
-                targets: channel_plan.summary.target_count,
-                discovered_videos: channel_plan.summary.discovered_video_count,
-                already_on_disk: channel_plan.summary.already_on_disk_count,
-                pending_requests: channel_plan.summary.pending_request_count,
-                blocked_failures: channel_plan.summary.blocked_failure_count,
-                new_requests: channel_plan.summary.new_request_count,
-                downloads_planned: channel_plan.summary.download_planned_count,
-            },
-        }))
+            Some(crate::elapsed_duration::budget(
+                5000,
+                fetch_summary
+                    .candidate_videos
+                    .saturating_add(thumbnail_summary.candidate_videos)
+                    .saturating_add(channel_plan.summary.discovered_video_count),
+                20,
+            )), /* Inventory only; no network downloads. */
+        ))
     }
 }
 

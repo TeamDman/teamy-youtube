@@ -19,6 +19,9 @@ impl ApiKeyValidateArgs {
     pub async fn invoke(self) -> eyre::Result<CliOutput> {
         let api_key = crate::paths::try_get_youtube_api_key()?;
         crate::youtube_api::validate_api_key(&api_key).await?;
-        Ok(CliOutput::facet(ApiKeyValidateReport { valid: true }))
+        Ok(CliOutput::facet(
+            ApiKeyValidateReport { valid: true },
+            Some(std::time::Duration::from_secs(35)), /* One HTTP validation request plus setup. */
+        ))
     }
 }

@@ -519,11 +519,16 @@ fn find_existing_media_files_for_videos(
         .enumerate()
     {
         let query_started_at = Instant::now();
-        let matching_paths = teamy_mft::cli::command::query::QueryArgs {
-            query: build_existing_media_queries(chunk),
-            ..Default::default()
-        }
-        .invoke()?;
+        let matching_paths =
+            crate::mft_query::collect_rows(&teamy_mft::cli::command::query::QueryArgs {
+                plan: teamy_mft::query::QueryPlan::parse_inputs(&build_existing_media_queries(
+                    chunk,
+                ))?,
+                ..Default::default()
+            })?
+            .into_iter()
+            .map(|row| std::path::PathBuf::from(row.path))
+            .collect::<Vec<_>>();
         debug!(
             chunk_index,
             chunk_size = chunk.len(),

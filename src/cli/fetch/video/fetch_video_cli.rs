@@ -111,7 +111,10 @@ impl FetchVideoArgs {
                 }
             }
         };
-        Ok(CliOutput::facet(report))
+        Ok(CliOutput::facet(
+            report,
+            Some(std::time::Duration::from_secs(35)), /* One HTTP metadata request plus local snapshot writes. */
+        ))
     }
 }
 

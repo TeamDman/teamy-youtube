@@ -28,9 +28,12 @@ impl CacheOpenArgs {
                 crate::paths::CACHE_DIR.0.display()
             )
         })?;
-        Ok(CliOutput::facet(CacheOpenReport {
-            cache_dir: crate::paths::CACHE_DIR.display().to_string(),
-            opened: true,
-        }))
+        Ok(CliOutput::facet(
+            CacheOpenReport {
+                cache_dir: crate::paths::CACHE_DIR.display().to_string(),
+                opened: true,
+            },
+            Some(std::time::Duration::from_secs(3)),
+        ))
     }
 }

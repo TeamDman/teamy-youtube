@@ -4,5 +4,6 @@ use facet::Facet;
 #[derive(Clone, Debug, Facet, PartialEq)]
 pub struct RawWatchHistorySubtitle {
     pub name: String,
+    #[facet(default)]
     pub url: Option<String>,
 }

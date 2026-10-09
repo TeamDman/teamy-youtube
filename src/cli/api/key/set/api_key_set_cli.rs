@@ -24,8 +24,11 @@ impl ApiKeySetArgs {
     #[expect(clippy::unused_async)]
     pub async fn invoke(self) -> eyre::Result<CliOutput> {
         let persisted_path = crate::paths::set_youtube_api_key(&self.value)?;
-        Ok(CliOutput::facet(ApiKeySetReport {
-            persisted_path: persisted_path.display().to_string(),
-        }))
+        Ok(CliOutput::facet(
+            ApiKeySetReport {
+                persisted_path: persisted_path.display().to_string(),
+            },
+            Some(std::time::Duration::from_secs(1)),
+        ))
     }
 }

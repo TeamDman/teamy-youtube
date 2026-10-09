@@ -45,14 +45,17 @@ impl SyncChannelAddArgs {
         )
         .await?;
 
-        Ok(CliOutput::facet(SyncChannelAddReport {
-            sync_dir: sync_dir.display().to_string(),
-            channel_id: added.target.channel_id,
-            channel_name: added.target.channel_name,
-            channel_source_url: added.target.source_url,
-            preferred_download_dir: added.target.preferred_download_dir,
-            channel_target_file: added.target_path.display().to_string(),
-        }))
+        Ok(CliOutput::facet(
+            SyncChannelAddReport {
+                sync_dir: sync_dir.display().to_string(),
+                channel_id: added.target.channel_id,
+                channel_name: added.target.channel_name,
+                channel_source_url: added.target.source_url,
+                preferred_download_dir: added.target.preferred_download_dir,
+                channel_target_file: added.target_path.display().to_string(),
+            },
+            Some(std::time::Duration::from_secs(1)),
+        ))
     }
 }
 

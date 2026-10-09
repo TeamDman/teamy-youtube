@@ -113,17 +113,17 @@ mod tests {
 
     #[test]
     fn rejects_empty_video_id() {
-        assert!(YouTubeVideoId::try_new("   ").is_err());
+        let _ = YouTubeVideoId::try_new("   ").unwrap_err();
     }
 
     #[test]
     fn rejects_wrong_length_video_id() {
-        assert!(YouTubeVideoId::try_new("abc123").is_err());
-        assert!(YouTubeVideoId::try_new("abcdefghijkl").is_err());
+        let _ = YouTubeVideoId::try_new("abc123").unwrap_err();
+        let _ = YouTubeVideoId::try_new("abcdefghijkl").unwrap_err();
     }
 
     #[test]
     fn rejects_invalid_characters() {
-        assert!(YouTubeVideoId::try_new("abc123def4!").is_err());
+        let _ = YouTubeVideoId::try_new("abc123def4!").unwrap_err();
     }
 }

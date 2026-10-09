@@ -34,9 +34,12 @@ impl SyncDirSetArgs {
         std::fs::create_dir_all(&sync_dir)?;
         let sync_dir = dunce::canonicalize(&sync_dir)?;
         crate::paths::set_sync_dir(&sync_dir)?;
-        Ok(CliOutput::facet(SyncDirSetReport {
-            sync_dir: sync_dir.display().to_string(),
-        }))
+        Ok(CliOutput::facet(
+            SyncDirSetReport {
+                sync_dir: sync_dir.display().to_string(),
+            },
+            Some(std::time::Duration::from_secs(1)),
+        ))
     }
 }
 

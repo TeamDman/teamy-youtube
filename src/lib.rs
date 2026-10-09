@@ -3,11 +3,14 @@
 
 pub mod channel_sync;
 pub mod cli;
+pub mod elapsed_duration;
 pub mod fs_db;
 pub mod logging_init;
+mod mft_query;
 pub mod paths;
 pub mod sync_progress;
 pub mod takeout;
+pub mod takeout_zip;
 pub mod youtube_api;
 
 use crate::cli::Cli;
@@ -66,7 +69,21 @@ pub fn main() -> eyre::Result<()> {
 
     // Invoke whatever command was requested and render its output once at the top level
     let requested_output_format = cli.global_args.output_format;
-    let output = cli.invoke()?;
-    output.emit(requested_output_format)?;
-    Ok(())
+    let command_name = cli.command.name();
+    let started = std::time::Instant::now();
+    tracing::debug!(command = command_name, "Dispatching command");
+    let result = (|| -> eyre::Result<()> {
+        let _command_span = tracing::info_span!("command", command = command_name).entered();
+        let output = cli.invoke()?;
+        let threshold = output.elapsed_duration_warn_threshold;
+        let result = output.emit(requested_output_format);
+        elapsed_duration::warn_if_exceeded(command_name, started.elapsed(), threshold);
+        result
+    })();
+    tracing::debug!(
+        command = command_name,
+        success = result.is_ok(),
+        "Command finished"
+    );
+    result
 }

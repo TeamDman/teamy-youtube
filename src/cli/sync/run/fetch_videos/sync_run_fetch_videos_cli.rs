@@ -62,7 +62,9 @@ impl SyncRunFetchVideosArgs {
     /// This function will return an error if the sync dir is unset, the API key is unavailable,
     /// video discovery fails, the API request fails, or fetched files cannot be written.
     pub async fn invoke(self) -> eyre::Result<CliOutput> {
-        Ok(CliOutput::facet(self.run().await?))
+        let report = self.run().await?;
+        let budget = report.completion_budget();
+        Ok(CliOutput::facet(report, Some(budget)))
     }
 
     /// # Errors
@@ -278,6 +280,15 @@ fn format_optional_limit(value: Option<usize>) -> String {
     value.map_or_else(|| "none".to_owned(), |inner| inner.to_string())
 }
 
+impl SyncRunFetchVideosReport {
+    // Five seconds setup. 20 ms per inventory candidate plus 30 seconds per planned metadata request.
+    pub(crate) fn completion_budget(&self) -> std::time::Duration {
+        crate::elapsed_duration::budget(5000, self.candidate_video_count, 20).saturating_add(
+            crate::elapsed_duration::budget(0, self.fetch_planned_video_count, 30_000),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::build_fetch_video_plan;
@@ -354,5 +365,39 @@ mod tests {
         assert_eq!(plan.total_missing_video_count, 1);
         assert_eq!(plan.missing_video_ids.len(), 1);
         assert_eq!(plan.missing_video_ids[0].as_str(), "zzz98765432");
+    }
+}
+
+#[cfg(test)]
+mod completion_budget_tests {
+    use super::*;
+    #[test]
+    fn metadata_budget_uses_planned_work_not_completed_results() {
+        let mut report = SyncRunFetchVideosReport {
+            sync_dir: "synthetic".to_owned(),
+            candidate_video_count: 10,
+            existing_fetch_video_count: 8,
+            missing_fetch_video_count: 2,
+            fetch_planned_video_count: 2,
+            fetch_completed_video_count: 0,
+            fetch_missing_result_count: 0,
+            fetch_unavailable_result_count: 0,
+            fetch_limit: "2".to_owned(),
+            fetch_skipped_due_to_limit_count: 0,
+        };
+        assert_eq!(
+            report.completion_budget(),
+            std::time::Duration::from_millis(65_200)
+        );
+        report.fetch_completed_video_count = 2;
+        assert_eq!(
+            report.completion_budget(),
+            std::time::Duration::from_millis(65_200)
+        );
+        report.fetch_planned_video_count = 1;
+        assert_eq!(
+            report.completion_budget(),
+            std::time::Duration::from_millis(35_200)
+        );
     }
 }

@@ -138,10 +138,8 @@ mod tests {
 
     #[test]
     fn rejects_malformed_argument() {
-        assert!(
-            "not a video"
-                .parse::<YouTubeVideoArgument<'static>>()
-                .is_err()
-        );
+        let _ = "not a video"
+            .parse::<YouTubeVideoArgument<'static>>()
+            .unwrap_err();
     }
 }

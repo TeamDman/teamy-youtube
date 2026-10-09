@@ -64,9 +64,29 @@ impl SyncChannelArgs {
                 }
                 args.invoke().await
             }
-            None => Ok(CliOutput::facet(
-                run_channel_sync(mft_max_age, dry_run).await?,
-            )),
+            None => {
+                let report = run_channel_sync(mft_max_age, dry_run).await?;
+                // Five seconds setup, 20 ms per discovered video, 30 seconds per target discovery.
+                // Execution additionally expects ten minutes per planned video download.
+                // Dry-run only inventories stored discovery events and does not download.
+                let budget =
+                    crate::elapsed_duration::budget(5000, report.summary.discovered_videos, 20)
+                        .saturating_add(crate::elapsed_duration::budget(
+                            0,
+                            report.summary.targets,
+                            if dry_run { 20 } else { 30_000 },
+                        ))
+                        .saturating_add(crate::elapsed_duration::budget(
+                            0,
+                            if dry_run {
+                                0
+                            } else {
+                                report.summary.downloads_planned
+                            },
+                            600_000,
+                        ));
+                Ok(CliOutput::facet(report, Some(budget)))
+            }
         }
     }
 }

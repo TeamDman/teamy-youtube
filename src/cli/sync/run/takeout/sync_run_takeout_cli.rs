@@ -53,7 +53,9 @@ impl SyncRunTakeoutArgs {
     /// This function will return an error if the sync dir is unset, discovery fails,
     /// the takeout inputs cannot be read, or the sync database cannot be written.
     pub async fn invoke(self) -> eyre::Result<CliOutput> {
-        Ok(CliOutput::facet(self.run_with_mft_max_age(None).await?))
+        let report = self.run_with_mft_max_age(None).await?;
+        let budget = report.completion_budget();
+        Ok(CliOutput::facet(report, Some(budget)))
     }
 
     /// # Errors
@@ -64,7 +66,9 @@ impl SyncRunTakeoutArgs {
         self,
         mft_max_age: Option<Duration>,
     ) -> eyre::Result<CliOutput> {
-        Ok(CliOutput::facet(self.run_with_mft_max_age(mft_max_age).await?))
+        let report = self.run_with_mft_max_age(mft_max_age).await?;
+        let budget = report.completion_budget();
+        Ok(CliOutput::facet(report, Some(budget)))
     }
 
     /// # Errors
@@ -102,11 +106,7 @@ impl SyncRunTakeoutArgs {
         .await?;
 
         let preview_lines = if self.dry_run {
-            build_dry_run_preview_lines(
-                &sync_dir,
-                &playlist_entries,
-                &watch_history_report.entries,
-            )
+            build_dry_run_preview_lines(&sync_dir, &playlist_entries, &watch_history_report.entries)
         } else {
             Vec::new()
         };
@@ -306,11 +306,16 @@ fn discover_takeout_inputs_from_directory(
 }
 
 fn discover_takeout_inputs_from_index() -> eyre::Result<(PathBuf, Vec<PathBuf>)> {
-    let mut candidates = QueryArgs {
-        query: vec!["takeout history".to_owned(), "takeout playlists".to_owned()],
+    let mut candidates = crate::mft_query::collect_rows(&QueryArgs {
+        plan: teamy_mft::query::QueryPlan::parse_inputs(&[
+            "takeout history".to_owned(),
+            "takeout playlists".to_owned(),
+        ])?,
         ..Default::default()
-    }
-    .invoke()?;
+    })?
+    .into_iter()
+    .map(|row| std::path::PathBuf::from(row.path))
+    .collect::<Vec<_>>();
 
     candidates.sort();
     let mut watch_history_candidates = Vec::new();
@@ -445,6 +450,20 @@ fn takeout_root(path: &Path) -> Option<PathBuf> {
 
 fn is_readable_file(path: &Path) -> bool {
     std::fs::read(path).is_ok()
+}
+
+impl SyncRunTakeoutReport {
+    // Five seconds setup. 100 ms per source playlist plus 2 ms per preview event or 20 ms per imported event.
+    pub(crate) fn completion_budget(&self) -> std::time::Duration {
+        crate::elapsed_duration::budget(5000, self.playlist_csv_count, 100).saturating_add(
+            crate::elapsed_duration::budget(
+                0,
+                self.playlist_entry_count
+                    .saturating_add(self.watch_history_entry_count),
+                if self.dry_run { 2 } else { 20 },
+            ),
+        )
+    }
 }
 
 #[cfg(test)]

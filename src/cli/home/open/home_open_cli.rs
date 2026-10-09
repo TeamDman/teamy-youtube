@@ -28,9 +28,12 @@ impl HomeOpenArgs {
                 crate::paths::APP_HOME.0.display()
             )
         })?;
-        Ok(CliOutput::facet(HomeOpenReport {
-            home_dir: crate::paths::APP_HOME.display().to_string(),
-            opened: true,
-        }))
+        Ok(CliOutput::facet(
+            HomeOpenReport {
+                home_dir: crate::paths::APP_HOME.display().to_string(),
+                opened: true,
+            },
+            Some(std::time::Duration::from_secs(3)),
+        ))
     }
 }

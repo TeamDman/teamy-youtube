@@ -371,7 +371,9 @@ mod tests {
         assert!(!should_emit_takeout_progress_log(
             &progress,
             WriteEventOutcome::Written,
-            TAKEOUT_PROGRESS_LOG_INTERVAL - Duration::from_millis(1)
+            TAKEOUT_PROGRESS_LOG_INTERVAL
+                .checked_sub(Duration::from_millis(1))
+                .unwrap()
         ));
     }
 }

@@ -148,3 +148,56 @@ Set `TEAMY_YOUTUBE_1PASSWORD_YOUTUBE_API_KEY_REFERENCE` or pass `-OnePasswordRef
 ## Specification
 
 The initial requirements live under `docs/spec` and are wired through `.config/tracey/config.styx`.
+## Read Takeout ZIPs without importing
+
+These commands inspect/read one ZIP directly and never extract it, import into the sync
+directory, fetch metadata, acquire an API key, or refresh MFT. No sync-directory setting is required.
+
+```powershell
+teamy-youtube takeout inspect 'G:\exports\takeout-20260101T000000Z-001.zip'
+teamy-youtube takeout read 'G:\exports\takeout-20260101T000000Z-001.zip' --output-format json
+teamy-youtube takeout read --input-dir 'G:\exports' --output-format csv
+teamy-youtube takeout inspect
+```
+
+An explicit path may have any filename. Omit it to select automatically. Repeat
+`--input-dir` to recursively search multiple roots; symlink directories are skipped.
+If no root is provided, `TEAMY_YOUTUBE_TAKEOUT_DIR` supplies one configured root.
+Otherwise selection queries published MFT paths, subject to existing MFT filter rules.
+MFT's existing snapshot freshness check defaults to two hours (`--mft-max-age 2h`).
+Stale/unavailable indexes fail with instructions to use an explicit path or discovery root;
+this command does not start the daemon or rebuild/refresh indexes. Recent or filtered-out
+archives can be absent from published indexes, including when an overlay is newer than the base snapshot.
+
+Automatic eligibility requires a standard `takeout-YYYYMMDDTHHMMSSZ-<numeric-part>.zip`
+filename and a recognized YouTube `history/watch-history.json` central-directory entry.
+The newest valid UTC filename timestamp wins; modification time is never a fallback.
+The result explains discovery source, date basis, candidate eligibility, and selected file snapshot.
+Ties fail, including same-date split exports: choose one ZIP explicitly. Split archives are
+not merged. Renamed archives require explicit selection. Unreadable/invalid candidates are
+reported as rejected; unrelated exports are ignored. Candidate discovery is capped at 256 ZIPs
+and 100000 directory entries; narrow the root when exceeded.
+
+`inspect` returns selection details and a sorted entry inventory without decoding watch rows.
+`read` returns that inventory plus normalized watch records with video ID, RFC3339 watch time,
+title, optional channel name/URL/ID, archive path, entry name, and zero-based record index.
+Channel IDs are derived only from recognized YouTube `/channel/UC…` URLs; handles are retained
+as URLs without network resolution. Watch events do not imply complete viewing. Missing URLs
+and unsupported video URLs are skipped and counted; no channel identity is invented.
+History-only JSON exports need no playlist files. Playlist CSV and HTML-history sections are
+inventoried but not decoded in this milestone. `read` fails clearly when JSON history is absent.
+
+ZIP reads enforce 100000 entries and a 256 MiB watch-entry limit by default. Override with
+`--max-entries` and `--max-entry-bytes`. Only the recognized history entry is decompressed;
+unrelated/media entries are not read. This is bounded **entry buffering**, then in-memory JSON
+array decoding, not true record streaming or whole-archive buffering. Traversal/absolute entry
+paths, duplicate normalized names, multiple history entries, malformed ZIP/JSON, checksum errors,
+and oversized history entries fail. Entry paths are never extracted. File size/mtime snapshots
+detect ordinary modifications during selection/read; they are not cryptographic identity checks.
+
+Text and JSON include the full report. CSV contains flat inventory rows (`inspect`) or watch
+rows (`read`), with provenance on each watch row. Existing global `--log-file` still writes logs
+only when explicitly requested. Library consumers can use `ArchiveSelectionRequest`,
+`select_archive_from_candidates`, `SelectedArchive`, `ArchiveReadRequest`, and `read_archive`
+without involving the CLI, current event storage, or YouTube credentials. Storage-provider
+decoupling and backend selection remain deferred.

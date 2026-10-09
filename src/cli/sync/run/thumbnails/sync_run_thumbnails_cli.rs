@@ -131,7 +131,9 @@ impl SyncRunThumbnailsArgs {
     /// This function will return an error if the sync dir is unset, raw fetch data cannot be
     /// read, thumbnail URLs cannot be parsed, or thumbnail files cannot be downloaded or written.
     pub async fn invoke(self) -> eyre::Result<CliOutput> {
-        Ok(CliOutput::facet(self.run().await?))
+        let report = self.run().await?;
+        let budget = report.completion_budget();
+        Ok(CliOutput::facet(report, Some(budget)))
     }
 
     /// # Errors
@@ -557,6 +559,15 @@ async fn write_unchanged_thumbnail_event(
     ))
 }
 
+impl SyncRunThumbnailsReport {
+    // Five seconds setup. 20 ms per inventory candidate plus 30 seconds per planned thumbnail request.
+    pub(crate) fn completion_budget(&self) -> std::time::Duration {
+        crate::elapsed_duration::budget(5000, self.candidate_video_count, 20).saturating_add(
+            crate::elapsed_duration::budget(0, self.thumbnail_work_item_count, 30_000),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::build_thumbnail_sync_plan_with_refresh;
@@ -587,8 +598,8 @@ mod tests {
 
     #[test]
     fn requires_both_refresh_arguments() {
-        assert!(parse_refresh_policy(Some("2d"), None).is_err());
-        assert!(parse_refresh_policy(None, Some("6h")).is_err());
+        let _ = parse_refresh_policy(Some("2d"), None).unwrap_err();
+        let _ = parse_refresh_policy(None, Some("6h")).unwrap_err();
     }
 
     #[test]

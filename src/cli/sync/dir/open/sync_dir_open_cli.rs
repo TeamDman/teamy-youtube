@@ -25,9 +25,12 @@ impl SyncDirOpenArgs {
         std::fs::create_dir_all(&sync_dir)?;
         open::that_detached(sync_dir.as_path())
             .wrap_err_with(|| format!("Failed to open {} in file manager", sync_dir.display()))?;
-        Ok(CliOutput::facet(SyncDirOpenReport {
-            sync_dir: sync_dir.display().to_string(),
-            opened: true,
-        }))
+        Ok(CliOutput::facet(
+            SyncDirOpenReport {
+                sync_dir: sync_dir.display().to_string(),
+                opened: true,
+            },
+            Some(std::time::Duration::from_secs(3)),
+        ))
     }
 }

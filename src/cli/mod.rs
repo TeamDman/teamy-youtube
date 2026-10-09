@@ -6,6 +6,7 @@ pub mod global_args;
 pub mod home;
 pub mod output;
 pub mod sync;
+pub mod takeout;
 
 use crate::cli::api::ApiArgs;
 use crate::cli::cache::CacheArgs;
@@ -14,6 +15,7 @@ use crate::cli::global_args::GlobalArgs;
 use crate::cli::home::HomeArgs;
 use crate::cli::output::CliOutput;
 use crate::cli::sync::SyncArgs;
+use crate::cli::takeout::TakeoutArgs;
 use arbitrary::Arbitrary;
 use eyre::Context;
 use facet::Facet;
@@ -76,12 +78,28 @@ pub enum Command {
     Home(HomeArgs),
     /// Reconcile referenced videos with local filesystem-backed data.
     Sync(SyncArgs),
+    /// Inspect or read Takeout ZIPs without extraction or import.
+    Takeout(TakeoutArgs),
 }
 
 impl Command {
+    /// Safe static dispatch label; excludes paths, queries and credentials.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Api(_) => "api",
+            Self::Cache(_) => "cache",
+            Self::Fetch(_) => "fetch",
+            Self::Home(_) => "home",
+            Self::Sync(_) => "sync",
+            Self::Takeout(_) => "takeout",
+        }
+    }
+
     /// # Errors
     ///
     /// This function will return an error if the subcommand fails.
+    #[tracing::instrument(name = "command", skip_all, fields(command = self.name()))]
     pub async fn invoke(self) -> eyre::Result<CliOutput> {
         match self {
             Command::Api(args) => args.invoke().await,
@@ -89,6 +107,7 @@ impl Command {
             Command::Fetch(args) => args.invoke().await,
             Command::Home(args) => args.invoke().await,
             Command::Sync(args) => args.invoke().await,
+            Command::Takeout(args) => args.invoke(),
         }
     }
 }

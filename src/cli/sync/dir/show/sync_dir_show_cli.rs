@@ -20,9 +20,12 @@ impl SyncDirShowArgs {
     #[expect(clippy::unused_async)]
     pub async fn invoke(self) -> eyre::Result<CliOutput> {
         let sync_dir = crate::paths::get_sync_dir()?;
-        Ok(CliOutput::facet(SyncDirShowReport {
-            is_set: sync_dir.is_some(),
-            sync_dir: sync_dir.map(|value| value.display().to_string()),
-        }))
+        Ok(CliOutput::facet(
+            SyncDirShowReport {
+                is_set: sync_dir.is_some(),
+                sync_dir: sync_dir.map(|value| value.display().to_string()),
+            },
+            Some(std::time::Duration::from_secs(1)),
+        ))
     }
 }

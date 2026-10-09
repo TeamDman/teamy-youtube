@@ -161,13 +161,13 @@ mod tests {
 
     #[test]
     fn rejects_channel_url() {
-        assert!(YouTubeVideoUrl::try_new("https://www.youtube.com/channel/abc123def45").is_err());
+        let _ =
+            YouTubeVideoUrl::try_new("https://www.youtube.com/channel/abc123def45").unwrap_err();
     }
 
     #[test]
     fn rejects_playlist_url_without_video_id() {
-        assert!(
-            YouTubeVideoUrl::try_new("https://www.youtube.com/playlist?list=PL1234567890").is_err()
-        );
+        let _ = YouTubeVideoUrl::try_new("https://www.youtube.com/playlist?list=PL1234567890")
+            .unwrap_err();
     }
 }
